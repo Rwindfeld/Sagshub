@@ -1,0 +1,7 @@
+node_modules/
+*.exe
+*.asar
+*.log
+/dist/
+/build/
+/client/postgresql.exe
