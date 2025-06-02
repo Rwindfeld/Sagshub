@@ -1,3 +1,11 @@
+node_modules/
+*.exe
+*.asar
+*.log
+/dist/
+/build/
+/client/postgresql.exe
+
 # Build artifacts
 /dist
 /build
@@ -15,3 +23,18 @@ node_modules/
 sagshub/client/postgresql.exe
 sagshub/SagsHub-Distribution/
 sagshub/dist-electron/
+
+# Ignore node dependencies
+node_modules/
+vendor/
+dist/
+build/
+out/
+
+# Ignore binary files
+*.exe
+*.asar
+*.dll
+*.zip
+*.log
+
