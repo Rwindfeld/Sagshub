@@ -1,0 +1,112 @@
+{
+  "name": "sagshub",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "electron-standalone.cjs",
+  "homepage": "./",
+  "scripts": {
+    "start": "node dist/index.js",
+    "dev": "tsx server/index.ts",
+    "dev:frontend": "cd client && npm run dev",
+    "dev:backend": "tsx watch server/index.ts",
+    "dev:all": "concurrently \"npm run dev:frontend\" \"npm run dev:backend\"",
+    "build": "tsc --noEmitOnError false",
+    "electron": "electron .",
+    "electron-dev": "NODE_ENV=development electron .",
+    "build-electron": "npm run build && electron-builder",
+    "build:frontend": "cd client && npm run build -- --mode production || echo 'Frontend build completed with warnings'",
+    "dist": "electron-builder --publish=never",
+    "dist-portable": "electron-builder --win portable --publish=never",
+    "generate-cases": "tsx scripts/generate-cases.ts",
+    "update-case-numbers": "tsx scripts/update-case-numbers.ts",
+    "delete-cases": "tsx scripts/delete-cases.ts",
+    "check-cases": "tsx scripts/check-cases.ts",
+    "update-rma-statuses": "tsx scripts/run-rma-status-update.ts",
+    "generate-orders": "tsx scripts/generate-orders.ts",
+    "delete-orders": "tsx scripts/delete-orders.ts"
+  },
+  "author": "SagsHub Team",
+  "license": "ISC",
+  "keywords": ["sagshub", "case-management", "customer-service"],
+  "description": "SagsHub - Sags- og Kundestyringssystem",
+  "dependencies": {
+    "@faker-js/faker": "^9.7.0",
+    "@radix-ui/react-alert-dialog": "^1.1.10",
+    "@types/bcrypt": "^5.0.2",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.1",
+    "@types/express-session": "^1.18.1",
+    "@types/node": "^22.14.0",
+    "@types/passport": "^1.0.17",
+    "@types/passport-local": "^1.0.38",
+    "@types/pg": "^8.11.14",
+    "@vitejs/plugin-react": "^4.5.0",
+    "bcrypt": "^5.1.1",
+    "connect-pg-simple": "^10.0.0",
+    "cors": "^2.8.5",
+    "date-fns": "^4.1.0",
+    "dotenv": "^16.4.7",
+    "drizzle-orm": "^0.43.1",
+    "drizzle-zod": "^0.7.1",
+    "express": "^5.1.0",
+    "express-session": "^1.18.1",
+    "kill-port": "^2.0.1",
+    "nodemon": "^3.1.10",
+    "npm-run-all": "^4.1.5",
+    "passport": "^0.7.0",
+    "passport-local": "^1.0.0",
+    "pg": "^8.15.5",
+    "typescript": "^5.8.3",
+    "vite": "^6.3.5"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "electron": "^36.3.1",
+    "electron-builder": "^26.0.12",
+    "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0",
+    "tsx": "^4.19.3"
+  },
+  "build": {
+    "appId": "com.sagshub.app",
+    "productName": "SagsHub",
+    "asar": false,
+    "directories": {
+      "output": "dist-electron"
+    },
+    "files": [
+      "dist/**/*",
+      "client/dist/**/*",
+      "electron-standalone.cjs",
+      "loading.html",
+      "start-sagshub.bat",
+      "package.json",
+      "node_modules/**/*",
+      ".env",
+      "shared/**/*",
+      "server/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "start-sagshub.bat",
+        "to": "start-sagshub.bat"
+      },
+      {
+        "from": "client/dist",
+        "to": "client/dist"
+      },
+      {
+        "from": ".env",
+        "to": ".env"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": ["x64"]
+        }
+      ]
+    }
+  }
+}

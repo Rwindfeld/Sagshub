@@ -1,0 +1,20 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.rma = void 0;
+exports.rma = pgTable("rma", {
+    id: serial("id").primaryKey(),
+    rmaNumber: text("rma_number").notNull(),
+    customerId: integer("customer_id").references(() => customers.id),
+    caseId: integer("case_id").references(() => cases.id),
+    customerName: text("customer_name").notNull(),
+    invoiceNumber: text("invoice_number"),
+    faultDate: timestamp("fault_date").notNull(),
+    faultDescription: text("fault_description").notNull(),
+    modelName: text("model_name").notNull(),
+    sku: text("sku"),
+    serialNumber: text("serial_number"),
+    supplier: text("supplier"),
+    status: text("status").notNull().default("created"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});

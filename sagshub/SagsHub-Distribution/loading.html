@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SagsHub Starter</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            text-align: center;
+        }
+        .container {
+            max-width: 500px;
+            padding: 40px;
+        }
+        h1 {
+            font-size: 2.5em;
+            margin-bottom: 20px;
+            font-weight: 300;
+        }
+        p {
+            font-size: 1.2em;
+            margin-bottom: 30px;
+            opacity: 0.9;
+        }
+        .spinner {
+            border: 4px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top: 4px solid white;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .status {
+            font-size: 0.9em;
+            opacity: 0.8;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 SagsHub</h1>
+        <div class="spinner"></div>
+        <p>Starter sags- og kundestyringssystem...</p>
+        <div class="status" id="status">Initialiserer server...</div>
+    </div>
+
+    <script>
+        let attempts = 0;
+        const maxAttempts = 30; // 30 sekunder
+        
+        function updateStatus() {
+            attempts++;
+            const statusEl = document.getElementById('status');
+            
+            if (attempts < 5) {
+                statusEl.textContent = 'Starter Node.js server...';
+            } else if (attempts < 10) {
+                statusEl.textContent = 'Installerer dependencies...';
+            } else if (attempts < 15) {
+                statusEl.textContent = 'Bygger applikation...';
+            } else if (attempts < 20) {
+                statusEl.textContent = 'Starter webserver...';
+            } else if (attempts < maxAttempts) {
+                statusEl.textContent = 'Næsten klar...';
+            } else {
+                statusEl.textContent = 'Genindlæser...';
+                window.location.href = 'http://localhost:3000';
+                return;
+            }
+            
+            // Prøv at forbinde til server
+            fetch('http://localhost:3000')
+                .then(response => {
+                    if (response.ok) {
+                        window.location.href = 'http://localhost:3000';
+                    } else {
+                        setTimeout(updateStatus, 1000);
+                    }
+                })
+                .catch(() => {
+                    setTimeout(updateStatus, 1000);
+                });
+        }
+        
+        // Start status opdatering efter 3 sekunder
+        setTimeout(updateStatus, 3000);
+    </script>
+</body>
+</html> 
