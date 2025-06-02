@@ -1,7 +1,17 @@
-node_modules/
-*.exe
-*.asar
+# Build artifacts
+/dist
+/build
+/out
 *.log
-/dist/
-/build/
-/client/postgresql.exe
+
+# Dependencies
+node_modules/
+
+# Electron
+*.asar
+*.exe
+
+# DB og klient binærer
+sagshub/client/postgresql.exe
+sagshub/SagsHub-Distribution/
+sagshub/dist-electron/
