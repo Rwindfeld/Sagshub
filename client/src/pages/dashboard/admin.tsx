@@ -1131,134 +1131,26 @@ function AvgCaseTimeGraph() {
     c.status === 'completed' || c.status === 'ready_for_pickup'
   );
 
-  console.log('TOTAL COMPLETED CASES:', completedCases.length);
-  console.log('TOTAL CASES FROM API:', cases.length);
-  
-  // Debug: Find de nyeste sager (17461-17467)
-  const newestCases = cases.filter((c: any) => c.id >= 17461 && c.id <= 17467);
-  console.log('NYESTE TEST SAGER (17461-17467):', newestCases.length);
-  newestCases.forEach((c: any) => {
-    console.log('NYESTE SAG:', {id: c.id, status: c.status, updatedAt: c.updatedAt, createdAt: c.createdAt});
+  console.log('StatsCards debug:', {
+    totalCases: cases.length,
+    completedCasesCount: completedCases.length,
+    completedStatusBreakdown: {
+      completed: cases.filter(c => c.status === 'completed').length,
+      ready_for_pickup: cases.filter(c => c.status === 'ready_for_pickup').length
+    }
   });
   
-  // Debug: Find alle sager med maj 2025 updatedAt
-  const mayUpdatedCases = cases.filter((c: any) => {
-    const updated = parseISO(c.updatedAt);
-    const localDateStr = updated.toLocaleString('sv-SE', { timeZone: 'Europe/Copenhagen' });
-    const localMonth = localDateStr.substring(0, 7);
-    return localMonth === '2025-05';
-  });
-  console.log('ALLE SAGER MED MAJ 2025 UPDATED:', mayUpdatedCases.length);
-  mayUpdatedCases.forEach((c: any) => {
-    console.log('MAJ UPDATED SAG:', {id: c.id, status: c.status, updatedAt: c.updatedAt});
-  });
-  
-  // Debug: Find afsluttede sager med maj 2025 updatedAt
-  const mayCompletedCases = mayUpdatedCases.filter((c: any) => 
-    c.status === 'completed' || c.status === 'ready_for_pickup'
-  );
-  console.log('MAJ 2025 AFSLUTTEDE SAGER:', mayCompletedCases.length);
-  mayCompletedCases.forEach((c: any) => {
-    console.log('MAJ AFSLUTTET SAG:', {id: c.id, status: c.status, updatedAt: c.updatedAt});
-  });
-  
-  // Debug: Tjek specifikt de sager vi ved er afsluttede
-  const specificCompletedCases = cases.filter((c: any) => 
-    [17461, 17462, 17463, 17464, 17465, 17466, 17467].includes(c.id)
-  );
-  console.log('SPECIFIKKE AFSLUTTEDE SAGER (17461-17467):', specificCompletedCases.length);
-  specificCompletedCases.forEach((c: any) => {
-    const updated = parseISO(c.updatedAt);
-    const localDateStr = updated.toLocaleString('sv-SE', { timeZone: 'Europe/Copenhagen' });
-    const localMonth = localDateStr.substring(0, 7);
-    console.log('SPECIFIK SAG:', {
-      id: c.id, 
-      status: c.status, 
-      updatedAt: c.updatedAt,
-      localMonth,
-      isCompleted: c.status === 'completed' || c.status === 'ready_for_pickup'
-    });
-  });
-
-  // Aggreger gennemsnitlig behandlingstid pr. måned
-  const monthMap: Record<string, number[]> = {};
-  let debugCount = 0;
-  let mayCount = 0;
-  completedCases.forEach((c: any) => {
-    // Brug præcis tidszone-konvertering til Europe/Copenhagen
-    const updated = parseISO(c.updatedAt);
-    // Konverter til dansk lokal tid ved at bruge toLocaleString
-    const localDateStr = updated.toLocaleString('sv-SE', { timeZone: 'Europe/Copenhagen' }); // sv-SE giver YYYY-MM-DD format
-    const localMonth = localDateStr.substring(0, 7); // Tag YYYY-MM delen
+  const avgDays = completedCases.length > 0
+    ? Math.round(
+        completedCases.reduce((sum: number, c: any) => {
+          // Hvis sagstid er 0 dage, sæt minimum til 1 dag
+          const days = differenceInDays(parseISO(c.updatedAt), parseISO(c.createdAt));
+          return sum + Math.max(days, 1);
+        }, 0) / completedCases.length
+      )
+    : 0;
     
-    // Tæl maj 2025 sager
-    if (localMonth === '2025-05') {
-      mayCount++;
-      console.log('MAJ-MATCH:', {id: c.id, updatedAt: c.updatedAt, createdAt: c.createdAt, status: c.status});
-    }
-    
-    // Debug de første 5 sager
-    if (debugCount < 5) {
-      console.log('DEBUG CASE:', {
-        id: c.id,
-        updatedAt: c.updatedAt,
-        localDateStr,
-        localMonth,
-        status: c.status
-      });
-      debugCount++;
-    }
-    
-    let days = differenceInDays(updated, parseISO(c.createdAt));
-    // Hvis differenceInDays er 0, men createdAt og updatedAt er samme dag, så sæt til 1 dag
-    if (days === 0) {
-      const created = parseISO(c.createdAt);
-      const createdLocalStr = created.toLocaleString('sv-SE', { timeZone: 'Europe/Copenhagen' });
-      const createdLocalDate = createdLocalStr.substring(0, 10); // YYYY-MM-DD
-      const updatedLocalDate = localDateStr.substring(0, 10); // YYYY-MM-DD
-      if (
-        createdLocalDate === updatedLocalDate
-      ) {
-        days = 1;
-      }
-    }
-    if (!monthMap[localMonth]) monthMap[localMonth] = [];
-    monthMap[localMonth].push(days);
-    // Log alle sager der matcher maj 2025
-    if (localMonth === '2025-05') {
-      console.log('MAJ-MATCH:', {id: c.id, updatedAt: c.updatedAt, createdAt: c.createdAt, days});
-    }
-  });
-
-  // Byg de seneste 12 måneder, så grafen altid slutter med nuværende måned
-  const now = new Date();
-  let months: string[] = [];
-  for (let i = 11; i >= 0; i--) {
-    months.push(format(subMonths(now, i), 'yyyy-MM'));
-  }
-
-  // Filtrér på valgt interval hvis angivet
-  if (fromMonth) months = months.filter(m => m >= fromMonth);
-  if (toMonth) months = months.filter(m => m <= toMonth);
-
-  // Byg chartData så alle måneder er med, også dem uden data
-  const chartData = months.map(month => ({
-    month,
-    avgDays: monthMap[month]?.length > 0
-      ? Math.round(monthMap[month].reduce((a, b) => a + b, 0) / monthMap[month].length)
-      : 0
-  }));
-
-  // Flyt logning herned
-  console.log('months', months);
-  console.log('chartData', chartData);
-  console.log('MAJ 2025 COMPLETED CASES:', mayCount);
-
-  // Nøgletal for denne og sidste måned
-  const thisMonth = format(now, 'yyyy-MM');
-  const lastMonth = format(subMonths(now, 1), 'yyyy-MM');
-  const avgThisMonth = chartData.find(d => d.month === thisMonth)?.avgDays || 0;
-  const avgLastMonth = chartData.find(d => d.month === lastMonth)?.avgDays || 0;
+  console.log('StatsCards avgDays result:', avgDays);
 
   return (
     <div className="bg-white rounded-xl shadow p-6 flex flex-col gap-4 border border-gray-100">
@@ -1281,14 +1173,10 @@ function AvgCaseTimeGraph() {
         )}
       </div>
       <div className="mb-4">
-        <span className="font-medium">Denne måned:</span> {avgThisMonth} dage
-        <span className="text-muted-foreground ml-4">{avgLastMonth} dage sidste måned</span>
-        <span className={avgThisMonth - avgLastMonth >= 0 ? 'text-green-600 ml-4' : 'text-red-600 ml-4'}>
-          {avgLastMonth > 0 ? (avgThisMonth - avgLastMonth >= 0 ? '↑' : '↓') : ''} {avgLastMonth > 0 ? Math.abs(Math.round(((avgThisMonth - avgLastMonth) / avgLastMonth) * 100)) : 0}% fra sidste måned
-        </span>
+        <span className="font-medium">Denne måned:</span> {avgDays} dage
       </div>
       <ResponsiveContainer width="100%" height={300}>
-        <BarChart data={chartData} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
+        <BarChart data={[{ month: format(new Date(), 'yyyy-MM'), avgDays }]} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
           <CartesianGrid strokeDasharray="3 3" />
           <XAxis dataKey="month" />
           <YAxis allowDecimals={false} />
@@ -1575,12 +1463,29 @@ function StatsCards() {
   // Alle sager
   const totalCases = cases.length;
   // Gennemsnitlig sagstid for alle afsluttede sager
-  const completedCases = cases.filter((c: any) => c.status === 'completed');
+  const completedCases = cases.filter((c: any) => c.status === 'completed' || c.status === 'ready_for_pickup');
+  
+  // Debug information
+  console.log('StatsCards debug:', {
+    totalCases,
+    completedCasesCount: completedCases.length,
+    completedStatusBreakdown: {
+      completed: cases.filter(c => c.status === 'completed').length,
+      ready_for_pickup: cases.filter(c => c.status === 'ready_for_pickup').length
+    }
+  });
+  
   const avgDays = completedCases.length > 0
     ? Math.round(
-        completedCases.reduce((sum: number, c: any) => sum + differenceInDays(parseISO(c.updatedAt), parseISO(c.createdAt)), 0) / completedCases.length
+        completedCases.reduce((sum: number, c: any) => {
+          // Hvis sagstid er 0 dage, sæt minimum til 1 dag
+          const days = differenceInDays(parseISO(c.updatedAt), parseISO(c.createdAt));
+          return sum + Math.max(days, 1);
+        }, 0) / completedCases.length
       )
     : 0;
+    
+  console.log('StatsCards avgDays result:', avgDays);
   // Alle kunder
   const totalCustomers = customers?.length || 0;
   // Alle RMA
