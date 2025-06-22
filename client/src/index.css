@@ -56,28 +56,37 @@
   body {
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
-    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
     min-height: 100vh;
+  }
+  
+  /* Light mode gradient */
+  body:not(.dark) {
+    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  }
+  
+  /* Dark mode gradient */
+  body.dark {
+    background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
   }
 }
 
 @layer components {
-  /* Zebra striping for alle tabeller */
+  /* Zebra striping for alle tabeller - light mode */
   .table tbody tr:nth-child(even) {
-    @apply bg-gray-50;
+    @apply bg-gray-50 dark:bg-gray-800;
   }
   
   .table tbody tr:nth-child(odd) {
-    @apply bg-white;
+    @apply bg-white dark:bg-gray-900;
   }
   
   /* Hover effekt der overskriver zebra striping */
   .table tbody tr:hover {
-    @apply bg-blue-50 !important;
+    @apply bg-blue-50 dark:bg-blue-900/30 !important;
   }
   
   /* Alarm rows skal have rød baggrund og overskrive zebra striping */
   .table tbody tr.alarm-row {
-    @apply bg-red-50 border-red-500 !important;
+    @apply bg-red-50 dark:bg-red-900/30 border-red-500 dark:border-red-400 !important;
   }
 }

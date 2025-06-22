@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { LiveActivityMenu } from "./live-activity-menu";
+import { ThemeToggle } from "./theme-toggle";
 
 interface UnreadCountResponse {
   count: number;
@@ -57,32 +58,35 @@ export function Menu() {
   };
 
   return (
-    <nav className="h-full w-full bg-white shadow-sm">
+    <nav className="h-full w-full bg-white dark:bg-gray-900 shadow-sm border-r dark:border-gray-700">
       <div className="p-4">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-lg font-semibold">TJdata Menu</h2>
-          {user?.isWorker && (
-            <Button 
-              variant="ghost" 
-              size="icon"
-              onClick={handleInternalCasesClick}
-              className="relative"
-              title="Interne sager"
-            >
-              <Bell className="h-5 w-5" />
-              {unreadCount > 0 && (
-                <Badge
-                  variant="destructive"
-                  className={cn(
-                    "absolute -right-2 -top-2 h-5 w-5 justify-center rounded-full p-0",
-                    unreadCount > 99 && "w-6"
-                  )}
-                >
-                  {unreadCount > 99 ? "99+" : unreadCount}
-                </Badge>
-              )}
-            </Button>
-          )}
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            {user?.isWorker && (
+              <Button 
+                variant="ghost" 
+                size="icon"
+                onClick={handleInternalCasesClick}
+                className="relative"
+                title="Interne sager"
+              >
+                <Bell className="h-5 w-5" />
+                {unreadCount > 0 && (
+                  <Badge
+                    variant="destructive"
+                    className={cn(
+                      "absolute -right-2 -top-2 h-5 w-5 justify-center rounded-full p-0",
+                      unreadCount > 99 && "w-6"
+                    )}
+                  >
+                    {unreadCount > 99 ? "99+" : unreadCount}
+                  </Badge>
+                )}
+              </Button>
+            )}
+          </div>
         </div>
         <div className="flex flex-col gap-2">
           <Button
