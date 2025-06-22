@@ -1,0 +1,435 @@
+1. Introduktion 
+Mit navn er Rattana Jensen, og jeg præsenterer SagsHub – et digitalt sagsstyringssystem, jeg har udviklet til mindre virksomheder som TJData. SagsHub er en webapplikation tilgængelig fra enhver browser på virksomhedens netværk. Systemet erstatter manuelle processer og Excel-ark med en automatiseret, centraliseret løsning.
+
+2.  Baggrund og problemstilling
+TJData's medarbejdere bruger krævende tid på at finde sager i et 15 år gammelt system og Excel-ark. Det skaber frustration både internt og hos kunder. Jeg var I Praktik hos dem, og problemet var tydeligt allerede fra min første dag på stedet. 
+Mit mål var at udvikle et moderne websystem med én relationsdatabase, hvor arbejdsgange er digitaliseret og automatiseret.
+ Og Arbejdsglæde op.
+
+ Videre
+
+TJDataś værksted håndtere deres værkstedsager over 3 forskellige systemer, 1 til saghåndtering (Billedet 1 og 2)  
+NÆSTE
+RMA sager på billedet 3, 
+og Bestillingssager af fx reservedele som ny batteri, skærm osv på en anden system som hedder Sapera, 3 forskellige systemer. Dette skaber forvirring og risiko for fejl, siden man ofte skulle følge en sag over 3 systemer, og ofte skulle spørge kollegaer for opdateringer 
+
+3. VIDERE
+4. Udviklingsproces og metoder
+Jeg har arbejdet med sprints samt MOSCOW og løbende feedback.
+NÆSTE
+MoSCoW  Must have (kritiske funktioner), Should have (vigtige), Could have (ønskelige), Won't have (ikke denne gang).
+NÆSTE
+Projektet er delt op i mindre faser, hvor hver fase har haft klare mål og er afsluttet med evaluering og feedback. Tidsplanen var kun guide, nogen ting har taget længere tid og kortere tid. 
+NÆSTE
+Dette diagram viser sagsbehandlingsworkflowet i Sagshub – altså alle de trin, en sag kan gå igennem fra start til slut. 
+Workflowet starter, når en kunde henvender sig med et problem. Herefter følger sagen en masse række trins. Det er vigtigt at forstå processen af en sagsbehandling for at forstå de vigtig funktioner Sagshub skal have.
+
+Nogle diagramer er utydelig, eller evt udskiftet til bedre design, men jeg kan sagtens trække bilagene frem efter præsentationen
+
+
+NÆSTE
+
+
+
+5.  Krav og mål
+Login-funktionalitet
+	• Medarbejder-login: Brugernavn + kodeord valideret med Passport.js og scrypt
+	• Kunde-login: Telefon og sagsnummer valideres mod eksisterende sag
+Kundebase
+Kunder gemmes i PostgreSQL med validerede felter. CRUD-operationer håndteres via REST API, og data valideres i både frontend og backend.
+Sagsbehandling
+Sager får unikt sagsnummer, kobles til kunder, og logger statusændringer med medarbejder-ID og tidsstempel.
+RMA-modul
+Reklamationer gemmes med data som serienummer, leverandør og fejlbeskrivelse, så de kan spores gennem hele processen.
+Sikkerhed
+Passwords hashes med scrypt, så de ikke kan genskabes selv ved datalæk.
+
+NÆSTE
+Bilag 16, sessions setup
+
+Dette billede viser, hvordan session håndtering bliver sat op i Sagshubs backend. Sessioner bruges til at holde styr på, hvem der er logget ind, og sikre at brugeren forbliver logget ind, mens de bruger systemet.
+
+Hvad viser billedet?
+• Funktionen setupAuth sætter alt op, der har med login og sessioner at gøre i Express-serveren.
+• Den sørger for, at der er en hemmelig “nøgle” (SESSION_SECRET), som bruges til at kryptere sessionerne.
+• Den konfigurerer, hvordan cookies (små filer, der holder brugeren logget ind) skal opføre sig.
+
+NÆSTE
+
+Bilag 17, hash
+
+Dette billede viser indholdet af users-tabellen i Sagshubs database.Det er her, alle medarbejdere og administratorer, der kan logge ind i systemet, er gemt.
+Hvad viser billedet?
+• Hver række er en bruger (medarbejder eller admin).
+• username: Brugernavn, fx “Rattana”, “admin”, “Mike”.
+• password: Her er adgangskoden gemt som en hash – altså en lang, krypteret tekst, ikke den rigtige adgangskode.
+• is_worker: True, hvis brugeren er en medarbejder.
+• is_admin: True, hvis brugeren er administrator.
+
+NÆSTE
+
+6.  Systemarkitektur – Overblik
+SagsHub er bygget som en klassisk client-server arkitektur med adskilte, men tæt samarbejdende dele via klare grænseflader. Det sikrer fleksibilitet, sikkerhed og gør systemet nemt at vedligeholde og udvide.
+
+NÆSTE
+Arkitekturdiagram
+LÆS OP
+NÆSTE
+
+Bilag 4, enkelt/simpel Arkitekturdiagram
+
+Billedet viser, en simpel version af hvordan Sagshub er bygget op, og hvordan de forskellige dele af systemet hænger sammen.
+
+Fuld streg: Frontend → Backend
+Den fulde streg mellem Frontend (Client) og Backend (Server) viser, at det kun er frontend, der kommunikerer direkte med backend.
+Det sker via fetch/API-kald, når brugeren fx opretter eller henter en sag.
+Frontend kan ikke snakke direkte med databasen – alt går gennem backend.
+
+Stiplede linjer: Delte datatyper og scripts
+De stiplede linjer i diagrammet betyder, at der deles datatyper, definitioner eller scripts mellem de forskellige dele af systemet.
+De stiplede linjer betyder ikke, at der er direkte adgang eller kommunikation – kun at der er noget fælles, som genbruges.
+
+NÆSTE
+
+Frontend
+
+Frontend’en er bygget i React og TypeScript.
+I SagsHub bruger jeg:
+	• React Query til dataloading, caching og autosynk
+	• Wouter til hurtig navigation uden reload
+	• Radix UI & Tailwind CSS for tilgængelig og responsiv brugerflade
+
+NÆSTE
+
+Backend
+Backend’en håndterer:
+	• Logik: Oprettelse og statusopdatering af sager, adgangskontrol
+	• Sikkerhed: Passport.js til login/session, scrypt til password hashing, middleware til request-validering
+	• Validering: Alle data tjekkes igen på serveren
+	• Fejlhåndtering: Returnerer strukturerede fejl med HTTP-status
+Der bruges Drizzle ORM til databasekald i TypeScript for compile-time sikkerhed og tydelig datastruktur.
+
+NÆSTE
+Bilag 23, api endpoints
+Tabellen viser et udsnit af API-endpoints i Sagshub-systemet.Et API-endpoint er en “adresse” i backend, som frontend eller andre systemer kan kalde for at udføre bestemte handlinger.
+Tabellen har tre kolonner:
+• Endpoint: Stien, man kalder i API’et.
+• Metode: Hvilken HTTP-metode der bruges (fx GET, POST, PUT).
+• Funktion: Hvad endpointet gør.
+
+NÆSTE
+
+Bilag 26, Flow HTTP
+Dette billede viser flowet for en API/http-forespørgsel i Sagshub – altså hvordan en anmodning fra frontend (brugeren) bliver behandlet hele vejen gennem backend, indtil der kommer et svar tilbage.
+
+
+NÆSTE
+Bilag 18 User route
+Dette billede viser user management routes i backend-koden for Sagshub. Det er de API-endpoints, der styrer oprettelse, visning og sletning af brugere (medarbejdere/admins) i systemet.
+
+Hvad viser billedet?
+Der er tre hovedfunktioner (routes):
+7. Opret bruger (POST /api/users)
+8. Hent alle brugere (GET /api/users)
+9. Slet bruger (DELETE /api/users/:id)
+
+NÆSTE
+
+Database
+Databasen er PostgreSQL, som er en robust og skalerbar relationsdatabase. 
+Jeg bruger Drizzle ORM til at:
+	• Definere tabeller og relationer direkte i TypeScript
+	• Generere migrations, så ændringer i databasen kan versioneres og rulles frem og tilbage
+	• Sikre, at alle databasekald er type-sikre og validerede
+Eksempel:
+Når en sag oprettes, oprettes der automatisk en række i status-historik-tabellen, så man altid kan se, hvem der har gjort hvad og hvornår.
+
+
+NÆSTE
+
+Shared Components
+Jeg har samlet alle TypeScript-typer og valideringsfunktioner ét sted, så frontend og backend altid validerer data ens.
+Eksempel:
+Et felt som status defineres én gang og bruges både i backend (validering) og frontend (visning), så der ikke opstår uoverensstemmelser.
+Det gør koden mere vedligeholdelsesvenlig og gør det nemt at onboarde nye udviklere, da alt er samlet og dokumenteret ét sted.
+
+NÆSTE
+
+Afrunding på arkitektur
+Denne arkitektur gør SagsHub:- 
+Nem at vedligeholde og udvide, fordi alt er modulært og adskilt
+	• Sikker, fordi data valideres og kontrolleres i alle lag
+	• Skalerbar, fordi både frontend, backend og database kan opgraderes eller udskiftes uafhængigt af hinanden
+	• Klar til fremtidige udvidelser, fx integration med IoT-enheder, mobil-apps eller eksterne systemer
+	
+NÆSTE
+
+
+10. Node.js og PostgreSQL
+Node.js er et server-runtime-miljø til JavaScript, ideelt til webapplikationer med mange samtidige brugere. Med Express.js defineres nemt ruter, middleware (fx login og logging) og fejlopsamling. Systemet er asynkront og håndterer mange samtidige requests uden blokering. Til IoT eller indlejrede enheder ville jeg bruge MQTT eller WebSockets til realtids-signalhåndtering og integration med fx sensorer.
+
+PostgreSQL er en open source, relationsdatabase med fokus på dataintegritet, transaktioner og komplekse forespørgsler. Jeg har valgt den for dens skalerbarhed og understøttelse af normalisering. Jeg anvender constraints og checks til at sikre gyldige data og stabile relationer mellem tabeller.
+NÆSTE 
+bilag 22, tables oversigt Pgadmin
+
+Dette billede viser oversigten over alle tabeller i Sagshubs database. Tabellerne er de “beholdere”, hvor alle data om sager, kunder, brugere, ordrer osv. bliver gemt
+
+NÆSTE
+FRONTEND
+NÆSTE
+
+11. React – Dynamisk Brugergrænseflade
+React er et JavaScript-bibliotek til at bygge genbrugelige UI-komponenter som knapper, formularer og sider.
+I SagsHub bruger jeg React til:
+	• At bygge UI-komponenter (dashboard, lister, forms)
+	• Håndtere state med hooks
+	• Opdele brugerfladen i små dele for nem vedligeholdelse og udvidelse
+React opdaterer kun de dele af brugerfladen, der ændrer sig, hvilket giver en hurtig og responsiv oplevelse.
+
+NÆSTE
+
+6 billeder af layout og design
+
+NÆSTE
+
+12. React Query – Effektiv Datahåndtering
+React Query håndterer serverdata i frontend og sørger for:
+	• Fetching: Henter data fra API (fx sager, kunder)
+	• Caching: Gemmer data lokalt for at undgå unødig hentning
+	• Synkronisering: Opdaterer automatisk ved ændringer på serveren
+	• Loading/error states: Viser status og fejlbeskeder
+Eksempel:
+Når en sag opdateres ét sted, opdateres data automatisk på alle relevante skærme. Det sikrer, at brugeren altid ser nyeste data – hurtigt og responsivt.
+
+NÆSTE
+
+13. TypeScript – Typesikkerhed og Robusthed
+TypeScript bygger på JavaScript og tilføjer statisk typekontrol, så jeg kan definere præcise datatyper – fx at en sag har et id (number), case_number (string) og status (enum).
+Fordele:
+	• Fejl fanges tidligt under udvikling
+	• Tydeligere kode fungerer som dokumentation
+	• Let refaktorering, da ændringer i typer spores nemt
+Det gør systemet lettere at forstå og videreudvikle, og sikrer at frontend og backend er enige om datastrukturer.
+
+NÆSTE
+
+14. Radix UI – Tilgængelige Komponenter
+Radix UI er et bibliotek med fleksible komponenter som dialogbokse, dropdowns og formularer.
+Jeg bruger det, fordi det automatisk sikrer tilgængelighed – fx for skærmlæsere og tastaturnavigation – og gør det nemt at bygge moderne og brugervenlige interfaces på tværs af platforme.
+
+
+NÆSTE
+
+
+15. Datamodellering og databasehåndtering
+Her vil jeg dykke ned i, hvordan jeg har designet og håndteret data i SagsHub – både på database- og applikationsniveau.
+
+NÆSTE
+
+Centrale Tabeller i Datamodellen
+
+Datamodellen består af flere centrale tabeller; hver tabel repræsenterer en entitet i systemet. For eksempel indeholder tabellen 'cases' information om hver sag, mens 'users' og 'customers' opbevarer bruger- og kundedata.
+Tabellerne er designet i 3. normalform, så data ikke gentages unødvendigt, og alle relationer er klare og entydige.
+
+NÆSTE
+
+bilag 31, DIR
+Dette billede viser mappestrukturen (DIR-diagram) for Sagshub-projektet.Det giver et overblik over, hvordan koden er organiseret i hovedmapper og vigtige undermapper/filer.
+
+Jeg har valgt at opdele projektet i fire hoveddele for at gøre det let at finde rundt og for at adskille frontend, backend, fælles kode og databaseændringer.>Hvis jeg fx skal lave en ny side i brugerfladen, gør jeg det i client/src/pages. Hvis jeg skal lave et nyt API-endpoint, gør jeg det i server/routes.
+
+NÆSTE
+
+bilag 6, fil og mappe
+Billedet viser, at Sagshub-projektet er delt op i flere hovedmapper og filer, som hver har deres eget formål.Det gør det nemt at finde rundt i koden og at holde frontend, backend og fælles kode adskilt.
+
+NÆSTE
+
+Databaselagring og Relationer
+Jeg bruger PostgreSQL, da det er en robust relationsdatabase med støtte for komplekse relationer og transaktioner via foreign keys.
+Eksempler:
+	• Én kunde har mange sager (one-to-many)
+	• Én sag har mange statusændringer (one-to-many)
+	• Én ordre tilhører én sag (many-to-one)
+Det sikrer dataintegritet – fx kan en sag ikke oprettes uden at være koblet til en  kunde.
+
+NÆSTE 
+
+bilag 7, ERD
+Dette billede er et fuldt ER-diagram (Entity-Relationship Diagram) for Sagshubs database.Det viser, hvordan alle de vigtigste tabeller (entiteter) i databasen hænger sammen, og hvordan data relaterer til hinanden.
+
+Hvad viser billedet?
+Diagrammet viser alle de centrale tabeller i systemet, deres felter og hvordan de er forbundet med hinanden via linjer (relationer).Det giver et overblik over, hvordan sager, brugere, kunder, ordrer, RMA, kommentarer, statusser og interne beskeder hænger sammen.
+
+NÆSTE
+
+Datahentning med SQL-forespørgsler
+Jeg bruger Drizzle ORM til at skrive SQL via TypeScript.
+Typiske forespørgsler inkluderer:
+	• JOIN mellem fx cases og customers
+	• SELECT, WHERE, ORDER BY for at hente præcise data (fx nyeste sager)
+	• Indekser på felter som case_number og telefon sikrer hurtige søgninger, også ved store datamængder.
+
+ NÆSTE
+
+bilag 27, datamodel i drizzel
+Dette billede viser, hvordan cases-tabellen bliver defineret i kode med Drizzle ORM i Sagshub.Det er en måde at beskrive, hvordan tabellen skal se ud i databasen – direkte i TypeScript/JavaScript.
+
+Hvad viser billedet?
+• id: Unikt nummer for hver sag (primær nøgle).
+• userId: Reference til brugeren (medarbejderen), der er tilknyttet sagen.
+.references(() => users.id) betyder, at dette felt peger på id-feltet i users-tabellen.
+• description: Tekstfelt med beskrivelse af sagen.
+• statusId: Reference til status for sagen.
+.references(() => statuses.id) betyder, at dette felt peger på id-feltet i statuses-tabellen.
+• createdAt: Dato og tidspunkt for, hvornår sagen blev oprettet.
+.defaultNow() betyder, at feltet automatisk får den aktuelle dato/tid, når sagen oprettes.
+
+NÆSTE
+
+Dataopdatering og Migrations
+Jeg bruger Drizzle ORM til at holde database og kode synkroniseret via migrations. Ved ændringer i datamodellen (fx nye kolonner) genereres en migration, som gemmes og køres automatisk ved opstart.
+I SagsHub fungerer det sådan:
+	• Tabeller og felter defineres i TypeScript
+	• Ændringer håndteres via drizzle-kit push
+	• Migrations gemmes i /migrations og køres automatisk
+	• Sikrer korrekt opdatering – også i test/produktion
+	• Ændringshistorik giver nem fejlfinding og rollback
+Eksempel:
+Hvis jeg tilføjer feltet pickup_date, oprettes en migration, som automatisk føres ind næste gang systemet starter.
+
+NÆSTE 
+Bilag 5, datamodeller og relationer
+
+Billedet viser datamodellen og relationerne mellem en medarbejder (User) og en sag (Case) i Sagshubs system.
+
+• Det illustrerer, hvordan en sag kan tildeles en medarbejder, og hvordan både dokumenter og kommentarer kan knyttes til en sag.
+
+• User-tabellen repræsenterer medarbejdere, der arbejder i systemet.
+
+• Case-tabellen repræsenterer sager, som medarbejderne håndterer.
+
+• Document- og Comment-tabellerne viser, at man kan tilføje filer og kommentarer til hver sag.
+
+På den måde giver modellen et overblik over, hvordan medarbejdere, sager, dokumenter og kommentarer hænger sammen i Sagshub.
+
+NÆSTE
+
+Datavalidering i Systemet
+Validering sker på tre niveauer:
+	• Database: PostgreSQL constraints og checks sikrer fx korrekt telefonformat og gyldige foreign keys
+	• Backend: TypeScript + Zod validerer alle data før de gemmes
+	• Frontend: Input tjekkes med det samme, så brugeren får hurtig feedback ved fejl
+Det sikrer korrekte og konsistente data – og fanger fejl tidligt for både bruger og system.
+bilag i billedet 24 og 25
+
+Dette billede viser et JSON-svar fra Sagshubs API, når en bruger prøver at tilgå en beskyttet ressource uden at være logget ind.
+
+Dette billede viser et JSON-fejlsvar fra Sagshubs API, når der mangler et påkrævet felt i en forespørgsel.
+
+NÆSTE
+
+
+
+16. Sikkerhed og adgangskontrol
+SagsHub’s sikkerhed er lagdelt og omfatter:
+	• Scrypt hashing af passwords
+	• Sessions med sikre cookies (httpOnly, sameSite, secure)
+	• Rollebaseret adgang: Kunder ser kun egne sager, medarbejdere har bredere adgang
+	• Inputvalidering med TypeScript og Zod
+	• Rate limiting mod brute force
+	• HTTPS for kryptering
+	• CORS begrænser adgang til API’et
+
+17. Adgangskontrolmekanismer
+Jeg sikrer, at kun autoriserede brugere får adgang til relevante data og funktioner via:
+	• Roller (admin, medarbejder, kunde) – håndteres både i frontend og backend
+	• Sessions, som gemmer brugerens ID og rolle
+	• Rate limiting, der forhindrer for mange loginforsøg
+	• CORS, der begrænser adgang til bestemte netværk
+Eksempel:
+En kunde får en 403-fejl, hvis de prøver at tilgå en sag, de ikke ejer. En medarbejder uden admin-rettigheder blokeres også fra admin-funktioner.
+Disse mekanismer beskytter både data og systemet mod misbrug.
+
+NÆSTE
+
+bilag 15, CORS
+Dette billede viser et stykke kode, der konfigurerer CORS (Cross-Origin Resource Sharing) i Sagshubs backend. CORS er en sikkerhedsmekanisme, der bestemmer, hvilke hjemmesider eller programmer der må snakke sammen med serveren.
+
+Hvad viser billedet?
+• Koden bruger app.use(cors({...})) til at sætte regler for, hvem der må lave API-kald til serveren.
+• Her er CORS sat op til at tillade alle origins – altså alle, der prøver at tilgå serveren, får lov.
+Det er især vigtigt, når man vil kunne tilgå serveren fra forskellige computere på et netværk eller fra en .exe-distribution.
+
+NÆSTE
+
+18. Brugergrænseflade og design
+NÆSTE
+
+Jeg har designet en enkel og intuitiv brugerflade, løbende forbedret ud fra feedback fra TJData’s medarbejdere, så den passer til deres arbejdsgange.
+Jeg bruger konsistente farver, ikoner og layout, så det er let at finde rundt.
+Centrale flows som login, sagsoprettelse og kundedata er gjort nemme at bruge og forstå.
+Som både udvikler og konsulent har jeg rådgivet om, hvordan digitalisering kan effektivisere deres hverdag.
+
+NÆSTE
+19. Funktionalitetsoverblik
+Alle disse funktioner er bygget modulært, så det er nemt at tilføje eller ændre noget senere. 
+Systemet er forberedt til at kunne udvides med indlejrede systemer og IoT-enheder.Fx kan man koble en stregkodescanner eller en sensor til en Raspberry Pi, som så sender data direkte til SagsHub via API’et. Samt køre PI som 24/7 server.
+ Det gør det muligt at automatisere endnu flere arbejdsgange, fx lagerstyring eller statusopdateringer baseret på fysiske hændelser 
+SagsHub tilbyder en række funktioner:
+
+NÆSTE 
+Gå igennem alle
+
+NÆSTE
+
+20. Manuelle og Automatiske Tests
+Jeg har testet SagsHub med både manuelle og automatiske tests:
+	• Manuelle tests af kernefunktioner som login, sagshåndtering og adgangskontrol
+	• Automatiske tests til at simulere brugere og belastning med tusindvis af sager
+	• Brug af test-API’er og test-sider til systematisk validering af data og fejlbeskeder
+
+21. Testdatagenerering og Resultater
+Jeg har udviklet scripts, der opretter realistiske testdata – fx danske kunder og sager med status.
+	• Testdatagenerering: Ét klik giver tusindvis af datapunkter til troværdige tests
+	• Resultater: Systemet er testet stabilt og hurtigt – også med 3000+ sager
+Brugertests med medarbejdere har givet konkret feedback, som har forbedret både funktionalitet og brugeroplevelse.
+
+
+NÆSTE
+
+22. Deployment og Drift 
+NÆSTE
+
+Systemkrav
+SagsHub kan installeres på en server med Node.js og PostgreSQL. Minimumskravet er en server med 2 GB RAM, 1 CPU og internetadgang for at kunne håndtere eksterne forespørgsler.
+Systemet kan køre på både Windows og Linux, afhængigt af virksomhedens behov.
+
+Netværkssikkerhed
+Netværkssikkerhed opretholdes med HTTPS, så al kommunikation mellem klient og server er krypteret.
+Jeg har sat korrekt CORS-konfiguration op for at beskytte dataoverførsler og sikre, at kun autoriserede klienter på det rigtige netværk kan tilgå API’et.
+Firewall-regler begrænser adgangen til serveren, og kun autoriserede IP-adresser får adgang til API’et.
+Jeg anbefaler regelmæssig overvågning, fx med Grafana og Prometheus, for at opdage og reagere på potentielle trusler.
+
+Backup
+Automatiserede backup-rutiner sikrer, at alle data kan gendannes i tilfælde af fejl eller nedbrud.
+Jeg anbefaler at tage regelmæssige backups til en ekstern eller cloud-baseret løsning, så data altid kan gendannes hurtigt og sikkert.
+
+Systemopdateringer
+Systemopdateringer skal planlægges og dokumenteres for at sikre, at både servermiljø og applikation holdes opdateret og sikkert.
+Jeg anbefaler automatiske opdateringer af operativsystem og afhængigheder for at minimere risikoen for sårbarheder og driftsforstyrrelser.
+
+
+
+23. Konklusion og perspektivering
+Projektet har resulteret i en funktionel og skalerbar prototype, der effektiviserer arbejdsgange og skaber bedre overblik hos TJData.
+Jeg har opnået solid erfaring med moderne webteknologier, databasehåndtering og sikkerhedsløsninger.
+Det gør platformen fleksibel og værdifuld for brugerne, og jeg ser mange muligheder for at bygge videre på løsningen i fremtiden. 
+SagsHub er ikke bare en teknisk løsning, men også et eksempel på, hvordan man kan arbejde innovativt og forretningsorienteret med digitalisering i mindre virksomheder.
+Systemet er bygget, så det er nemt at videreudvikle – fx med cloud, realtidsfunktioner, integration til eksterne systemer eller udvidelse med IoT og indlejrede enheder.
+Jeg har opnået erfaring med både teknik, projektstyring og forretningsforståelse
+
+24. Demo og spørgsmål
+Nu vil jeg gerne vise en praktisk demonstration af SagsHub, hvor jeg opretter en sag, opdaterer status og viser dashboardet.
+Bagefter er der mulighed for at stille spørgsmål til både funktionalitet, implementering og de tekniske valg, jeg har truffet.
+ 

@@ -1,0 +1,1 @@
+# This file has been removed as we are using PostgreSQL with Node.js/Express
