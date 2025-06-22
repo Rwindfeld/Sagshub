@@ -6,7 +6,8 @@
     "dev": "tsx watch --require tsconfig-paths/register index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "test": "jest"
+    "test": "jest",
+    "network-info": "tsx ../scripts/network-info.ts"
   },
   "keywords": [],
   "author": "",

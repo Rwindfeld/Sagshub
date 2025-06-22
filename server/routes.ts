@@ -13,7 +13,7 @@ import { findAndTranslateEnglishCases } from './translate';
 import express from "express";
 import { Router } from "express";
 import { registerRoutes as registerAdditionalRoutes } from "./routes/index.js";
-import { broadcastLiveUpdate } from "./index.js";
+import { broadcastLiveUpdate, getRecentActivities } from "./index.js";
 
 const updateStatusSchema = z.object({
   status: z.enum([
@@ -134,7 +134,7 @@ export async function registerRoutes(app: Express): Promise<void> {
 
   // Health check endpoint - dette er offentligt tilgængeligt
   app.get("/api/health", (req, res) => {
-    res.status(200).json({ status: "OK" });
+    res.json({ status: "ok", timestamp: new Date().toISOString() });
   });
 
   app.head("/api/health", (req, res) => {
@@ -1337,6 +1337,18 @@ export async function registerRoutes(app: Express): Promise<void> {
     } catch (error) {
       console.error("Error exporting customer data:", error);
       res.status(500).json({ error: "Der opstod en fejl ved eksport af kundedata" });
+    }
+  });
+
+  // Live aktiviteter endpoint
+  app.get("/api/live-activities", (req, res) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 20;
+      const activities = getRecentActivities(limit);
+      res.json(activities);
+    } catch (error) {
+      console.error('Error fetching live activities:', error);
+      res.status(500).json({ error: 'Kunne ikke hente live aktiviteter' });
     }
   });
 }

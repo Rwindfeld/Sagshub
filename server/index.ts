@@ -63,6 +63,18 @@ app.use((req, res, next) => {
 const server = createServer(app);
 const PORT = process.env.PORT || 3000;
 
+// Persistent lagring af live aktiviteter
+interface LiveActivity {
+  id: string;
+  type: string;
+  message: string;
+  timestamp: string;
+  data: any;
+}
+
+const liveActivities: LiveActivity[] = [];
+const MAX_ACTIVITIES = 50; // Hold maks 50 aktiviteter i hukommelsen
+
 // WebSocket server for live aktivitet
 const wss = new WebSocketServer({ server });
 const clients = new Set();
@@ -77,6 +89,29 @@ wss.on('connection', (ws, req) => {
     message: 'Live aktivitet forbundet'
   }));
   
+  // Send de seneste aktiviteter til den nye klient
+  if (liveActivities.length > 0) {
+    console.log(`Sending ${liveActivities.length} recent activities to new client`);
+    
+    // Send aktiviteter i omvendt rækkefølge (ældste først) så de vises korrekt
+    const activitiesToSend = [...liveActivities].reverse();
+    
+    activitiesToSend.forEach((activity, index) => {
+      setTimeout(() => {
+        if (ws.readyState === 1) { // WebSocket.OPEN
+          try {
+            ws.send(JSON.stringify({
+              type: 'historical_activity',
+              ...activity
+            }));
+          } catch (error) {
+            console.error('Error sending historical activity:', error);
+          }
+        }
+      }, index * 50); // Lille forsinkelse mellem hver aktivitet for at undgå flooding
+    });
+  }
+  
   ws.on('close', () => {
     console.log('WebSocket connection closed');
     clients.delete(ws);
@@ -87,6 +122,28 @@ wss.on('connection', (ws, req) => {
     clients.delete(ws);
   });
 });
+
+// Funktion til at tilføje aktivitet til persistent lagring
+function addLiveActivity(type: string, message: string, data: any) {
+  const activity: LiveActivity = {
+    id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+    type,
+    message,
+    timestamp: new Date().toISOString(),
+    data
+  };
+  
+  // Tilføj til begyndelsen af array (nyeste først)
+  liveActivities.unshift(activity);
+  
+  // Hold kun de seneste aktiviteter
+  if (liveActivities.length > MAX_ACTIVITIES) {
+    liveActivities.splice(MAX_ACTIVITIES);
+  }
+  
+  console.log(`Added live activity: ${message} (Total: ${liveActivities.length})`);
+  return activity;
+}
 
 // Funktion til at broadcaste live opdateringer
 export function broadcastLiveUpdate(type: string, data: any) {
@@ -100,6 +157,9 @@ export function broadcastLiveUpdate(type: string, data: any) {
   if (data && data.message) {
     payload.message = data.message;
   }
+  
+  // Tilføj til persistent lagring
+  const activity = addLiveActivity(type, payload.message || 'Live opdatering', data);
   
   const message = JSON.stringify(payload);
   
@@ -117,6 +177,11 @@ export function broadcastLiveUpdate(type: string, data: any) {
   });
   
   console.log(`Live update broadcasted: ${type} to ${clients.size} clients`);
+}
+
+// Eksporter funktion til at hente seneste aktiviteter (til API endpoint)
+export function getRecentActivities(limit: number = 20): LiveActivity[] {
+  return liveActivities.slice(0, limit);
 }
 
 // Start server

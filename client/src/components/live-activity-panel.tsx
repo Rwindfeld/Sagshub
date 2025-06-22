@@ -105,20 +105,21 @@ export function LiveActivityPanel() {
       </CardHeader>
       <CardContent className="bg-white">
         <ScrollArea className={isExpanded ? "h-96" : "h-48"}>
-          <div className="text-center text-muted-foreground py-8">
-            <div className="text-2xl mb-2">🔔</div>
-            <p className="font-bold">Live Aktivitet Panel</p>
-            <p className="text-sm">Live opdateringer vises her</p>
-            <div className="mt-4 text-xs text-gray-600 bg-gray-100 p-3 rounded">
-              <p><strong>WebSocket URL:</strong> ws://localhost:3000</p>
-              <p><strong>Status:</strong> {isConnected ? '✅ Forbundet' : '❌ Ikke forbundet'}</p>
-              <p><strong>Aktiviteter modtaget:</strong> {activities.length}</p>
+          {activities.length === 0 ? (
+            <div className="text-center text-muted-foreground py-8">
+              <div className="text-2xl mb-2">🔔</div>
+              <p className="font-bold">Live Aktivitet Panel</p>
+              <p className="text-sm">Live opdateringer vises her</p>
+              <div className="mt-4 text-xs text-gray-600 bg-gray-100 p-3 rounded">
+                <p><strong>WebSocket URL:</strong> ws://{window.location.hostname}:3000</p>
+                <p><strong>Status:</strong> {isConnected ? '✅ Forbundet' : '❌ Ikke forbundet'}</p>
+                <p><strong>Aktiviteter modtaget:</strong> {activities.length}</p>
+                <p><strong>Venter på aktiviteter...</strong></p>
+              </div>
             </div>
-          </div>
-          
-          {activities.length > 0 && (
-            <div className="space-y-3 mt-4">
-              <h3 className="font-bold text-green-600">Aktiviteter:</h3>
+          ) : (
+            <div className="space-y-3 p-2">
+              <h3 className="font-bold text-green-600">Live Aktiviteter ({activities.length})</h3>
               {activities.map((activity) => (
                 <div
                   key={activity.id}

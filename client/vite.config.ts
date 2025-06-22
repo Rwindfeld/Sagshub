@@ -13,6 +13,7 @@ export default defineConfig({
     extensions: ['.mjs', '.js', '.ts', '.jsx', '.tsx', '.json']
   },
   server: {
+    host: '0.0.0.0',
     port: 5174,
     strictPort: true,
     proxy: {

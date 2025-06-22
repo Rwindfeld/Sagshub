@@ -6,6 +6,7 @@ export interface LiveActivityMessage {
   data?: any;
   message?: string;
   timestamp: string;
+  id?: string;
 }
 
 export interface LiveActivity {
@@ -76,7 +77,38 @@ export function useLiveActivity() {
         const message: LiveActivityMessage = JSON.parse(event.data);
         console.log('Live activity received:', message);
         
-        // Tilføj aktivitet til listen
+        // Håndter forskellige typer meddelelser
+        if (message.type === 'connection') {
+          // Forbindelsesbekræftelse - ignorer
+          return;
+        }
+        
+        if (message.type === 'historical_activity') {
+          // Historisk aktivitet - tilføj til enden (ældste først)
+          const activity: LiveActivity = {
+            id: message.id || `${Date.now()}-${Math.random()}`,
+            type: message.type,
+            message: message.message || 'Live opdatering',
+            timestamp: message.timestamp,
+            data: message.data
+          };
+          
+          setActivities(prev => {
+            // Tjek om vi allerede har denne aktivitet
+            const exists = prev.some(existing => existing.id === activity.id);
+            if (exists) {
+              return prev;
+            }
+            
+            // Tilføj historisk aktivitet til enden og sorter efter timestamp
+            const newActivities = [...prev, activity];
+            newActivities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+            return newActivities.slice(0, 50); // Hold max 50 aktiviteter
+          });
+          return;
+        }
+        
+        // Normale live opdateringer
         if (message.type !== 'connection') {
           // Opret unik nøgle for meddelelsen
           const messageKey = `${message.type}-${message.message}-${message.timestamp}`;
@@ -130,6 +162,7 @@ export function useLiveActivity() {
           case 'case_updated':
           case 'case_status_updated':
           case 'case_deleted':
+          case 'historical_activity':
             queryClient.invalidateQueries({ queryKey: ['cases'] });
             queryClient.invalidateQueries({ queryKey: ['case-status-counts'] });
             queryClient.invalidateQueries({ queryKey: ['alarm-count'] });
