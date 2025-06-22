@@ -1,4 +1,7 @@
 import adminRouter from "./admin";
+import { storage } from "../storage";
+import { insertUserSchema } from "../../shared/schema";
+import { hashPassword } from "../auth";
 export async function registerRoutes(app) {
     // Register admin routes
     app.use("/api/admin", adminRouter);
@@ -8,7 +11,10 @@ export async function registerRoutes(app) {
             return res.status(403).json({ error: "Kun administratorer kan opdatere brugere" });
         }
         const { id } = req.params;
-        const { username, name, isWorker, isAdmin } = req.body;
+        const result = insertUserSchema.safeParse(req.body);
+        if (!result.success) {
+            return res.status(400).json(result.error);
+        }
         try {
             // Tjek om brugeren eksisterer
             const existingUser = await storage.getUser(parseInt(id));
@@ -16,19 +22,26 @@ export async function registerRoutes(app) {
                 return res.status(404).json({ error: "Bruger ikke fundet" });
             }
             // Tjek om brugernavnet allerede er taget (hvis det er ændret)
-            if (username !== existingUser.username) {
-                const userWithUsername = await storage.getUserByUsername(username);
+            if (result.data.username !== existingUser.username) {
+                const userWithUsername = await storage.getUserByUsername(result.data.username);
                 if (userWithUsername) {
                     return res.status(400).json({ error: "Brugernavn er allerede taget" });
                 }
             }
+            // Forbered data til opdatering
+            const updateData = {
+                username: result.data.username,
+                name: result.data.name,
+                isWorker: result.data.isWorker,
+                isAdmin: result.data.isAdmin,
+                birthday: result.data.birthday || null,
+            };
+            // Hash password hvis det er angivet
+            if (result.data.password && result.data.password.length > 0) {
+                updateData.password = await hashPassword(result.data.password);
+            }
             // Opdater brugeren
-            const updatedUser = await storage.updateUser(parseInt(id), {
-                username,
-                name,
-                isWorker,
-                isAdmin
-            });
+            const updatedUser = await storage.updateUser(parseInt(id), updateData);
             res.json(updatedUser);
         }
         catch (error) {

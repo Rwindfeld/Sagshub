@@ -1,4 +1,4 @@
-import { useAuth } from "@/hooks/auth";
+import { useAuth } from "@/context/auth-context";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { User, InsertUser, insertUserSchema, createUserSchema, updateUserSchema, CaseStatus, PriorityType } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
@@ -761,44 +761,47 @@ export default function AdminPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {paginatedStaff.map((userData) => (
-                      <TableRow key={userData.id}>
-                        <TableCell>{userData.name}</TableCell>
-                        <TableCell>{userData.username}</TableCell>
-                        <TableCell>
-                          {userData.isAdmin ? "Administrator" : "Medarbejder"}
-                        </TableCell>
-                        {user.isAdmin && (
-                          <TableCell className="space-x-2">
-                            <Button variant="outline" size="icon" onClick={() => handleEditUser(userData)}>
-                              <Edit2 className="w-4 h-4" />
-                            </Button>
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <Button variant="outline" size="icon">
-                                  <Trash2 className="w-4 h-4" />
-                                </Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>Er du sikker?</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    Dette vil permanent slette medarbejderen {userData.name}.
-                                    Denne handling kan ikke fortrydes.
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>Annuller</AlertDialogCancel>
-                                  <AlertDialogAction onClick={() => deleteUserMutation.mutate(userData.id)}>
-                                    Slet
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
+                    {paginatedStaff.map((userData, index) => {
+                      const isEven = index % 2 === 0;
+                      return (
+                        <TableRow key={userData.id} className={isEven ? 'bg-white' : 'bg-gray-50'}>
+                          <TableCell>{userData.name}</TableCell>
+                          <TableCell>{userData.username}</TableCell>
+                          <TableCell>
+                            {userData.isAdmin ? "Administrator" : "Medarbejder"}
                           </TableCell>
-                        )}
-                      </TableRow>
-                    ))}
+                          {user.isAdmin && (
+                            <TableCell className="space-x-2">
+                              <Button variant="outline" size="icon" onClick={() => handleEditUser(userData)}>
+                                <Edit2 className="w-4 h-4" />
+                              </Button>
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button variant="outline" size="icon">
+                                    <Trash2 className="w-4 h-4" />
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Er du sikker?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      Dette vil permanent slette medarbejderen {userData.name}.
+                                      Denne handling kan ikke fortrydes.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Annuller</AlertDialogCancel>
+                                    <AlertDialogAction onClick={() => deleteUserMutation.mutate(userData.id)}>
+                                      Slet
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            </TableCell>
+                          )}
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
                 {/* PAGINATION STAFF */}
@@ -828,42 +831,45 @@ export default function AdminPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {paginatedCustomers.map((userData) => (
-                      <TableRow key={userData.id}>
-                        <TableCell>{userData.name}</TableCell>
-                        <TableCell>{userData.username}</TableCell>
-                        <TableCell>Kunde</TableCell>
-                        {user.isAdmin && (
-                          <TableCell className="space-x-2">
-                            <Button variant="outline" size="icon" onClick={() => handleEditUser(userData)}>
-                              <Edit2 className="w-4 h-4" />
-                            </Button>
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <Button variant="outline" size="icon">
-                                  <Trash2 className="w-4 h-4" />
-                                </Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>Er du sikker?</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    Dette vil permanent slette kunden {userData.name}.
-                                    Denne handling kan ikke fortrydes.
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>Annuller</AlertDialogCancel>
-                                  <AlertDialogAction onClick={() => deleteUserMutation.mutate(userData.id)}>
-                                    Slet
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
-                          </TableCell>
-                        )}
-                      </TableRow>
-                    ))}
+                    {paginatedCustomers.map((userData, index) => {
+                      const isEven = index % 2 === 0;
+                      return (
+                        <TableRow key={userData.id} className={isEven ? 'bg-white' : 'bg-gray-50'}>
+                          <TableCell>{userData.name}</TableCell>
+                          <TableCell>{userData.username}</TableCell>
+                          <TableCell>Kunde</TableCell>
+                          {user.isAdmin && (
+                            <TableCell className="space-x-2">
+                              <Button variant="outline" size="icon" onClick={() => handleEditUser(userData)}>
+                                <Edit2 className="w-4 h-4" />
+                              </Button>
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button variant="outline" size="icon">
+                                    <Trash2 className="w-4 h-4" />
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Er du sikker?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      Dette vil permanent slette kunden {userData.name}.
+                                      Denne handling kan ikke fortrydes.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Annuller</AlertDialogCancel>
+                                    <AlertDialogAction onClick={() => deleteUserMutation.mutate(userData.id)}>
+                                      Slet
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            </TableCell>
+                          )}
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
                 {/* PAGINATION CUSTOMERS */}

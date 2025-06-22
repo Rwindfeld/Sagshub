@@ -1,0 +1,498 @@
+
+ 
+Resumé
+Denne rapport beskriver udviklingen af SAGSHUB, en webbaseret prototype på et digitalt sagsstyringssystem til mindre virksomheder som TJData. Systemet erstatter manuelle Excel-ark og et forældet system fra 2007, som skaber fejl og manglende overblik.
+SAGSHUB er bygget med Node.js, Express.js, PostgreSQL, Drizzle ORM, React og React Query. Systemet tilbyder sagsstyring, kundehåndtering, ordrer, RMA-processer og sikker autentificering via scrypt password hashing. Prototypen er testet gennem manuel testning og automatisk testdatagenerering. Performance-tests med over 3000 sager viser stabil funktionalitet. TJData medarbejdere har testet systemet med positiv feedback. Resultaterne dokumenterer en funktionsdygtig prototype der effektiviserer sagsbehandling og forbedrer overblik. Projektet demonstrerer hvordan skræddersyede løsninger kan automatisere arbejdsgange i mindre virksomheder. Rapporten afsluttes med perspektiver for fremtidig udvikling og deployment.
+Indholdsfortegnelse
+
+
+Indledning 
+1.1 Problemformulering:
+TJData håndterer i dag RMA-, retur- og værkstedssager via et forældet system og manuelle Excel-ark. Det fører til fejl, dobbeltarbejde, dårlig datasammenhæng og ringe overblik, hvilket koster både tid og arbejdsglæde. Samtidig oplever kunder manglende opdateringer og begrænset sporbarhed, hvilket går ud over serviceoplevelsen. Virksomheden har derfor behov for en digital løsning, der automatiserer arbejdsgange, samler data ét sted og gør det lettere at følge sagsforløb, både for medarbejdere og kunder. Kommercielle systemer, som Zendesk og Dynamics 365, er ofte for dyre og komplekse til TJDatas behov. En skræddersyet prototype vil derimod kunne være mere enkel, billigere og lettere at tage i brug. Formålet med projektet er at udvikle en prototype på et sagsstyringssystem, der effektiviserer processerne, minimerer fejl og muliggør datadrevet analyse, med fokus på både datasikkerhed og brugervenlighed. Projektet undersøger, hvordan digitalisering konkret kan forbedre sagsbehandlingen i en mindre virksomhed som TJData og danne grundlag for en mulig fremtidig implementering.
+1.2 Formål med rapporten:
+Rapporten dokumenterer design og udvikling af prototypen SAGSHUB. Målet er at skabe et system, der effektiviserer håndteringen af værkstedssager. Fokus er lagt på brugervenlighed, dataintegritet og en skalerbar arkitektur med potentiale for fremtidig implementering.
+1.3 Baggrund og relevans:
+TJData benytter i dag en ældre løsning som skaber ineffektivitet, forvirring og fejl. Et skræddersyet digitalt system kan forbedre overblik, reducere fejl og styrke kundeoplevelsen. SAGSHUB er et eksempel på, hvordan moderne softwareudvikling kan digitalisere arbejdsgange i mindre virksomheder uden store it-budgetter.
+1.4 Afgrænsning:
+Projektet omhandler en prototype og ikke et færdigt produktionssystem. Fokus er på kernesystemets funktioner: oprettelse, visning og redigering af sager. Andre mulige funktioner nævnes kun overfladisk i perspektiveringen.  
+Se Bilag 1 og 2 for forældet sagssystem.
+Se Bilag 3 for manuel Excel-ark
+Teknik og Teori
+2. Baggrund / Teori
+2.1 Overblik 
+SAGSHUB er udviklet som et digitalt system, der skal gøre det nemmere for virksomheder at holde styr på deres sager, fx reparationer, returvarer og garantisager. Systemet er bygget som en webapplikation, hvilket betyder, at man kan bruge det direkte i en browser uden at installere noget.
+Prototypen består systemet af to hoveddele:
+•	Backend (al logik og datahåndtering) er bygget med Node.js
+•	Frontend (det man ser og klikker på) er lavet med React
+Systemet understøtter rollebaseret adgang, sessions, datahistorik og optimeret API-kommunikation.
+For at give overblik over systemets opbygning og flow vises følgende bilag:
+Herunder ses Bilag 4: Arkitekturdiagram over frontend, backend og database.
+ 
+Herunder ses Bilag 5 for et hurtigt overblik over de vigtigste tabeller og deres relationer.
+ 
+Se Bilag 6: Fil- og mappestruktur, der viser systemets modulopbygning.
+Se Bilag 7: ER-diagram over datamodeller og relationer.
+Se Bilag 31 for DIR-System.
+Se Bilag 8–14: Brugergrænseflade og funktionelle skærmbilleder fra prototypen (fx login, opret sag, medarbejderdashboard, kundens sagsvisning og dashboard m.m.)
+Disse diagrammer og billeder danner baggrund for den efterfølgende tekniske gennemgang.
+De teknologier, der er brugt, er nøje valgt, fordi de giver høj sikkerhed, gør det nemt at opdele og genbruge kode, og fordi systemet kan vokse og tilpasses fremover. Målet har været at skabe en løsning, som både er stabil og nem at vedligeholde, og som let kan bygges videre på i fremtiden.
+2.2 Backend-teknologier
+Node.js
+Node.js bruges som backend-motor, fordi det understøtter asynkrone og ikke-blokerende kald, perfekt til et API-baseret system med mange samtidige forespørgsler.
+Express.js
+Express.js anvendes som server-framework og bruges til at opbygge RESTful routes og middleware, som strukturerer al backend-logik.
+TypeScript
+TypeScript bruges i hele backend-koden for at sikre type-sikkerhed og tidlig fejlfinding. Det reducerer bugs og gør udviklingen mere stabil.
+Drizzle ORM
+Drizzle ORM bruges til at definere databasen i kode og generere migrations automatisk. Det sikrer, at database og kodebase altid er synkroniseret og type-sikre.
+PostgreSQL
+PostgreSQL er valgt som database på grund af dens robusthed, understøttelse af relationer og stærke performance. Den bruges til at gemme alle sager, kunder, ordrer og historik.
+pgAdmin
+pgAdmin bruges under udviklingen til at administrere databasen grafisk, f.eks. til at inspicere relationer, indsætte testdata og kontrollere tabelstruktur.
+Yderligere teknologier
+•	cors anvendes til at tillade sikre cross-origin forespørgsler fra frontend.
+•	date-fns bruges til håndtering og formatering af datoer.
+Se Bilag 15 for CORS-konfiguration mellem klient og serve
+2.3 Autentificering og sikkerhed
+For at sikre, at kun de rette personer får adgang til systemet, er der bygget et login-system med flere lag af sikkerhed.
+Login med Passport.js : Jeg bruger et værktøj kaldet Passport.js til at håndtere login og godkendelse af brugere. I mit system logger medarbejdere ind med brugernavn og kodeord, og Passport sørger for at kontrollere, om de oplysninger er korrekte. Det opretter også en "session", så brugeren forbliver logget ind, mens de bruger systemet.
+Sessioner med express-session : Når man logger ind, gemmes sessionen sikkert på serveren (ikke på brugerens computer). Det betyder, at brugeren ikke behøver logge ind igen for hvert klik, og samtidig kan vi holde styr på, hvem der er logget ind. Sessionerne kan sættes til automatisk at udløbe efter noget tid, og de er beskyttet med sikkerhedsindstillinger som fx krypterede cookies.
+Sådan beskytter vi systemet yderligere
+•	Adgangskoder bliver aldrig gemt som tekst, jeg bruger en teknik kaldet scrypt til at omdanne dem til ulæselige koder.
+•	Formularsikkerhed: For beskyttelse mod farlige angreb (som fx uønsket dataindsendelse) med CSRF-beskyttelse.
+•	Begrænset loginforsøg: For at forhindre hackere i at gætte kodeord, kan jeg sætte en grænse for, hvor mange gange man må prøve.
+•	Validering af input: Alle oplysninger, brugeren skriver, bliver tjekket grundigt, så man undgår fejl eller skadelige data, der kunne skade databasen.
+Se Bilag 16 for opsætning af sikre sessions.
+Herunder Ses Bilag 17 for eksempel på hashede kodeord og rolleflag.
+ 
+Se Bilag 18 for rolle-beskyttede API-ruter.
+2.4 Frontend-teknologier
+Frontend-delen af SAGSHUB er udviklet som en såkaldt Single Page Application (SPA). Det betyder, at hele systemet fungerer på én webside, og skifter indhold dynamisk uden at genindlæse hele siden, ligesom man kender det fra fx Gmail. Det giver en hurtig og mere flydende brugeroplevelse.
+Vite
+Jeg har brugt Vite som mit udviklingsværktøj. Det hjælper med at starte projektet hurtigt og viser ændringer i realtid, mens jeg udvikler. Det er langt hurtigere end ældre værktøjer som Webpack og gør det nemmere at arbejde effektivt.
+TypeScript (client-side)
+Frontend-koden er skrevet i TypeScript, som er en slags “forbedret JavaScript”. Det giver mig mulighed for at definere præcist, hvilke data der sendes og modtages, og hjælper med at fange fejl tidligt, hvilket gør systemet mere stabilt.
+Radix UI
+Til brugergrænsefladen bruger jeg Radix UI, som er et bibliotek med færdige og tilgængelige komponenter, fx formularer, dropdown-menuer og dialogbokse. De kan tilpasses fuldt ud og fungerer godt sammen med mit valgte designværktøj.
+Tailwind CSS
+Jeg har designet layoutet med Tailwind CSS, som er et moderne CSS-rammeværk. I stedet for at skrive klassisk CSS, kan jeg her bruge små "utility-klasser" direkte i HTML, som fx bg-gray-100 for baggrundsfarve. Det gør det hurtigere at bygge og justere udseendet.
+React Query (@tanstack/react-query)
+Jeg bruger React Query til at hente og opdatere data fra serveren. Den sørger for at gemme data midlertidigt (caching), genhente dem automatisk, og giver mulighed for “optimistiske opdateringer”, hvor brugerens ændringer vises med det samme, mens serveren gemmer dem i baggrunden.
+wouter
+Til navigation mellem forskellige sider i systemet bruger jeg wouter. Det er et simpelt bibliotek, som hjælper med at skifte mellem visninger, f.eks. fra en oversigt over sager til en detaljeside, uden at genindlæse siden.
+lucide-react
+Lucide-react er det ikonbibliotek, jeg har brugt. Det giver adgang til moderne, letvægtsikoner, som gør brugergrænsefladen mere genkendelig og visuelt intuitiv.
+Error Boundaries
+Jeg har implementeret Error Boundaries i kritiske komponenter som CaseList, der fanger og viser fejl, hvis noget går galt i brugerfladen. Det betyder, at brugeren ser en fejlmeddelelse i stedet for at komponenten crasher.
+2.5 Sammenhæng i stacken
+SAGSHUB er bygget som et klassisk client-server system. Frontend’en (det brugeren ser) taler sammen med backend’en (serveren) via et såkaldt REST API. Det betyder, at data sendes som små pakker frem og tilbage, fx når en sag skal hentes eller oprettes. Serveren er lavet med Express og gemmer data i en PostgreSQL-database, hvor jeg bruger Drizzle ORM til at definere databasefelter direkte i koden. Al kommunikation mellem bruger og server er sikret med login og sessions via Passport.js og express-session.
+Hele systemet, både frontend, backend og database, er skrevet i TypeScript, så fejl kan fanges tidligt og data behandles sikkert hele vejen igennem. For at forbedre brugeroplevelsen har jeg tilføjet funktioner som:
+•	Server-side pagination (henter kun lidt data ad gangen)
+•	Filtrering og søgning med forsinkelse (debounce), så API’et ikke overbelastes
+•	Fejlhåndtering, der viser tydelige beskeder og logger fejl pænt
+Stacken er valgt for at sikre, at systemet er hurtigt, sikkert og nemt at videreudvikle, også hvis det skal udvides i fremtiden.
+2.6 Datahåndtering og State Management
+SAGSHUB bruger React Query til at håndtere API-data i frontend. Data, som sager og kunder, caches automatisk og genhentes kun ved behov, hvilket øger hastighed og effektivitet. Ved ændringer i data vises opdateringen straks i UI’et via optimistic updates, som forbedrer brugeroplevelsen.
+Fejl håndteres både visuelt og teknisk: Error Boundaries i frontend viser brugervenlige beskeder, mens backend logger fejl centralt via middleware. Systemet anvender server-side pagination, så kun relevante data, fx 1000 sager ad gangen, vises, selv ved store datasæt. Kombineret med avanceret filtrering og debounced søgning undgås unødvendige API-kald, hvilket sikrer hurtig og præcis adgang til information.
+Metode 
+3.1 Udviklingsmetodik
+Jeg har udviklet SAGSHUB ud fra en moderne og struktureret tilgang til softwareudvikling. Systemet er bygget op i moduler, så hver del har sit eget ansvar, f.eks. frontend, backend, database og delte typer. Det gør det nemmere at vedligeholde og videreudvikle systemet. Alt er skrevet i TypeScript, hvilket betyder, at både frontend, backend og database “forstår” hinanden og advarer mig, hvis der er fejl, før jeg overhovedet kører koden.
+Under udviklingen brugte jeg værktøjer som:
+•	nodemon: genstarter serveren automatisk, når jeg gemmer ændringer.
+•	concurrently: starter både frontend og backend samtidig, så jeg kan arbejde hurtigt.
+•	scripts/-mappen: her har jeg samlet små hjælpeprogrammer, som fx sletter testdata eller genskaber databasen.
+Jeg brugte Git til versionsstyring og arbejdede med branches, så nye funktioner eller rettelser blev lavet adskilt fra den stabile version.
+Databaseudvikling med Drizzle ORM 
+Databasen er bygget og styret direkte fra min kode ved hjælp af Drizzle ORM. Det betyder, at jeg kunne definere tabeller og felter i TypeScript og få dem oversat automatisk til SQL, så databasen og koden hele tiden passede sammen.
+Iterativ udvikling (SCRUM-lignende)
+Projektet var delt op i mindre "sprints" med konkrete mål hver uge,  fx login i sprint 2/uge 15. Det gav et klart overblik og gjorde det nemt at prioritere undervejs. 
+Herunder ses Bilag 19 for sprint-plan og udviklingsforløb.
+ 
+3.2 MoSCoW
+Kravspecifikation – MoSCoW-model for SAGSHUB
+Must Have – Krav der er nødvendige for systemets funktion
+Disse funktioner er absolut nødvendige for, at systemet fungerer som det skal. 
+Login for kunder og medarbejdere. Kunder logger ind med kundenummer og telefonnummer. Medarbejdere anvender brugernavn og adgangskode. 
+Kundebase. Oprettelse og redigering af kunder. Påkrævede felter: fornavn, efternavn og telefonnummer. Adresse og e-mail er valgfrie. Medarbejderkommentarer er kun synlige internt..
+Sagsbase. Opret sager med unikt sagsnummer. Hver sag kobles til en kunde og indeholder sagsbeskrivelse, enhedstype, sagsbehandlingstype (fx gratis fejlsøgning), datoer og medbragt tilbehør. 
+Statussystem og historik. Status kan tilføjes med dato og kommentar. Historik gemmes og vises. Visning af ekstra felter baseret på status (fx ved RMA og Bestillinger)
+RMA-modul og delebestilling. Felter til RMA: fejlbeskrivelse, RMA-ID, varenummer, model, serienummer, leverandør og status.
+Adgangsbegrænsning. Kunder kan kun se egne sager. Medarbejdere har fuld adgang.
+Error Boundaries. Fejl i UI fanges og vises brugervenligt.
+Should Have – Vigtige krav der øger effektiviteten og overblikket
+Disse krav er stærkt ønskede og bør implementeres, hvis tiden tillader det.
+Dashboard for medarbejdere. Oversigt over aktive sager, søgefunktion, filtrering (efter dato, enhed, sagstype), mulighed for at redigere eller opdatere sager direkte. 
+Statusovervågning og alarmer. Systemet viser sager, hvor status ikke er opdateret i over en uge, undtagen hvis sagsbehandlingen er "gratis fejlsøgning", eller status er “afsluttet/udleveret/lukket”. 
+Udskriv-funktion. Mulighed for at udskrive en sagsoversigt som følgeseddel med udvalgte felter som kundenummer, sagsnummer, sagsbeskrivelse og tilbehør. 
+Analysemodul. Statistik over sagsfordeling (% for klargøring, reparation m.m.), gennemsnitlig behandlingstid og RMA-produktoversigt. 
+Se Bilag 20 for statistik-dashboard med nøgletal.
+Could Have – Nice to have, men ikke kritiske
+Disse funktioner vil forbedre brugeroplevelsen og systemets værdi, men er ikke nødvendige for første version: 
+Notifikationer til kunde. Automatisk besked til kunde ved opdateret status, fx via e-mail eller internt beskedsystem. 
+E-mail/SMS-integration. Integration med mail- eller sms-gateway til kommunikation med kunde. 
+Dataeksport. Mulighed for at eksportere rapporter eller analyser til Excel eller PDF.
+Won’t Have (Now) – Ikke med i denne version
+Disse funktioner er udeladt i denne prototype, men kan overvejes i en fremtidig version.
+Live chat mellem kunde og medarbejder. Ikke prioriteret grundet kompleksitet og tid. 
+Mobil-app. Fokus er på en desktop-browserbaseret løsning i første iteration.
+3.3 Arkitekturdesign
+SAGSHUB er bygget op efter en klassisk client-server model, hvor brugerfladen (frontend) og selve systemets logik og datahåndtering (backend) er adskilt. Det giver struktur, gør systemet lettere at vedligeholde og giver mulighed for fremtidige udvidelser. 
+Netværksarkitekturen anvender HTTP/HTTPS protokoller med CORS-konfiguration for sikker cross-origin kommunikation. Express-session middleware håndterer authentication gennem PostgreSQL session store, hvilket understøtter multiple samtidige forbindelser via connection pooling
+Se Bilag 4: Arkitekturdiagram over frontend, backend og database.
+Herunder ses Bilag 31 for DIR-System.
+ 
+Frontend, det brugeren ser og interagerer med
+Frontenden viser brugergrænsefladen og sender forespørgsler til serveren via API-kald. Den er udviklet med:
+•	Vite, som sørger for hurtig udvikling og opbygning af projektet
+•	TypeScript, der giver fejlbeskyttelse og bedre struktur i koden
+•	Radix UI, som tilbyder færdige, tilgængelige UI-komponenter (som knapper, formularer osv.)
+Komponentstruktur:
+•	UI-komponenter: fx knapper, tekstfelter og pop-up-vinduer
+•	Sider (Pages): fx sagsliste, sagsdetaljer og kundeside
+•	Layout-komponenter: styrer menuer og visningen afhængigt af brugerrollen
+State Management:
+•	React Query bruges til at hente og synkronisere data fra serveren
+•	Context API bruges til at holde styr på login-status og andre globale data
+Routing (navigering):
+•	wouter er et simpelt bibliotek til at styre side-skift i en såkaldt SPA (Single Page Application)
+•	ProtectedRoutes sørger for, at visse sider kun kan tilgås af brugere med korrekt adgang (fx medarbejdere)
+Backend, hjernen bag systemet
+Backenden håndterer al logik, datastruktur, sikkerhed og kommunikation med databasen. Den er bygget i Node.js med Express.js og bruger:
+•	Passport.js til login og brugerbekræftelse
+•	Drizzle ORM til at tale med databasen (PostgreSQL) med typesikkerhed
+Filstruktur:
+•	/routes: definerer de forskellige API-endpoints (fx /cases, /login)
+•	/controllers: indeholder forretningslogik og validering
+•	/shared: fælles funktioner og typer der bruges af både frontend og backend
+•	/scripts: små hjælpeprogrammer til testdata og opsætning
+•	/migrations: styrer ændringer i databasen over tid (versionshistorik)
+Herunder Ses Bilag 6: Fil- og mappestruktur, der viser systemets modulopbygning
+ 
+Denne arkitektur er valgt for at gøre systemet nemt at udvide, teste og tilpasse, både nu og i fremtidige versioner. Den adskilte struktur betyder fx, at det vil være let at tilføje en mobil-app eller integrere med andre systemer senere.
+3.4 Database- og datamodeldesign
+Jeg har opbygget databasen til SAGSHUB i PostgreSQL, som er et robust og fleksibelt databasesystem. Selve datamodellen er designet ud fra en metode, der hedder 3. normalform (3NF). Det betyder, at data er delt op i logiske tabeller for at undgå gentagelser og sikre korrekt sammenhæng mellem informationer.
+Herunder ses Bilag 7: ER-diagram over datamodeller og relationer.
+ 
+De vigtigste tabeller
+•	Kunder: indeholder navn, telefonnummer og andre oplysninger
+•	Sager: hver sag tilhører en kunde og beskriver en reparation eller undersøgelse
+•	Status: hver sag har en aktuel status (fx “under behandling”) og en historik, som gemmer tidligere statustrin
+•	Ordrer: knyttet til sager og bruges til fx reservedele eller reparationer
+•	RMA: hvis en enhed skal sendes retur til producenten, gemmes oplysninger som serienummer og fejlbeskrivelse
+•	Brugere: medarbejdere med adgang til systemet
+Relationer
+•	Én kunde kan have mange sager
+•	Én sag har én aktiv status, men kan have mange historiske statustrin
+•	Én sag kan have både ordrer og RMA-oplysninger tilknyttet
+Teknisk opsætning
+Jeg har brugt Drizzle ORM til at oprette og vedligeholde databasens struktur direkte i min kode med TypeScript. Det betyder:
+•	Tabeller, felter og forbindelser mellem data er defineret ét sted og bruges både i backend og API
+•	Alle ændringer til databasen bliver registreret og kan rulles tilbage (versioneret)
+•	Eventuelle fejl opdages allerede, inden koden kører (compile-time)
+Datakvalitet og ydeevne
+For at sikre, at der ikke opstår fejl i databasen:
+•	Hver række i en tabel har en unik nøgle (ID), og relationer sikres med fremmednøgler
+•	Felter som fx telefonnummer kan ikke være tomme (NOT NULL), og data valideres med regler (CHECK)
+•	Der er sat indekser på vigtige felter som navn, telefonnummer, sagsnummer og status, så søgninger og filtrering sker hurtigt
+Se Bilag 21 for feltstruktur i cases-tabellen.
+Se Bilag 22 for oversigt over alle tabeller i pgAdmin.
+3.5 API-design og fejlhåndtering
+Backend-delen af SAGSHUB stiller data til rådighed gennem et RESTful API, en velkendt og struktureret måde at sende og modtage data mellem server og klient. Hver type data (fx sager eller kunder) har sit eget endpoint, og der bruges almindelige HTTP-metoder, som gør det nemt at forstå og arbejde med:
+De fire vigtigste handlinger
+•	GET – henter data (fx en liste med sager)
+•	POST – opretter nye data (fx en ny kunde)
+•	PUT / PATCH – opdaterer eksisterende data (fx ændre status på en sag)
+•	DELETE – sletter data
+API-endpoints i systemet
+•	/api/auth: login og logout
+•	/api/cases: oprette, se og opdatere sager
+•	/api/customers: oprette og redigere kundedata
+•	/api/orders: tilføje ordreoplysninger til sager
+•	/api/rma: håndtere RMA- og garantidata
+Herunder ses  Bilag 23 for fuld REST-oversigt.
+ 
+Alle API-svar returneres i JSON-format, som er let at læse og behandle i frontend. Hver besked har en statuskode, fx:
+•	200 OK: alt gik godt
+•	400 Bad Request: noget var forkert i input
+•	401 Unauthorized: du er ikke logget ind
+•	403 Forbidden: du har ikke adgang
+•	404 Not Found: det du leder efter findes ikke
+•	500 Server Error: noget gik galt internt
+Se Bilag 24 for 403 Unauthorized-response.
+Se Bilag 25 for 400 Bad Request-response.
+Automatisk fejlhåndtering
+Jeg har bygget en central error handler ind i systemet, som automatisk fanger fejl, både dem der sker direkte i koden, og dem der opstår asynkront (fx under databasekald). Disse fejl bliver:
+•	logget i konsollen, for debugging og fejlfinding
+•	vist til brugeren som brugervenlige beskeder
+•	returneret som strukturerede JSON-svar, som frontend kan reagere på
+Frontend bruger Error Boundaries og notifikationer til at vise klare fejlbeskeder, så systemet ikke bare "går ned",  men guider brugeren videre.
+3.6 Teststrategi
+For at sikre at SAGSHUB fungerer stabilt og pålideligt, har jeg anvendt en gennemtestet strategi, der kombinerer tre lag af test:
+Funktionel testning af komponenter
+Jeg har testet systemets komponenter gennem systematisk manual gennemgang, fx funktioner der validerer input, beregner status, eller håndterer sessioner. Her bruges realistiske testdata fra automatiske scripts, og testene verificerer at resultatet bliver som forventet i forskellige scenarier
+Integrationstests, virker det hele sammen?
+Her testes om backenden snakker rigtigt sammen med databasen. Jeg har lavet tests af bl.a.:
+•	loginflow og sessions
+•	oprettelse og redigering af sager
+•	statusopdateringer og tilknytning til kunde
+Disse tests efterligner rigtige brugerhandlinger og tjekker, om systemet opfører sig korrekt hele vejen igennem.
+Performance og stresstests
+For at finde flaskehalse har jeg testet systemet med store mængder data, fx tusindvis af sager og kunder. Jeg har brugt automatiske scripts til at fylde databasen og testet, hvordan systemet håndterer det. Det har sikret, at pagination og filtrering stadig fungerer hurtigt, også under pres.
+Ekstra fokusområder i mine tests:
+Autentificering
+•	Kan man logge ind og ud korrekt?
+•	Bevares sessionen?
+•	Blokeres uautoriserede brugere korrekt?
+Sagsstyring
+•	Oprettelse og redigering af sager og kunder
+•	Automatisk tildeling af sager til kunder
+•	Statusopdateringer og historik-log
+Fejl og feedback
+•	Fejl bliver vist som brugervenlige beskeder
+•	UI-faldback vises ved tekniske fejl via Error Boundaries
+•	API-fejl logges automatisk og returneres i et læsbart JSON-format
+Implementering / Udvikling
+4.1 Overordnet systemarkitektur
+SAGSHUB er bygget efter en klassisk client-server-model, hvilket betyder, at brugerfladen (frontend) og den tekniske logik og databehandling (backend) er adskilt. De to dele kommunikerer via en RESTful API, som er en standardmetode til at udveksle data. Denne opbygning gør det nemt at skalere systemet og tilføje nye funktioner i fremtiden – for eksempel en mobilapp eller integration til eksterne systemer.
+Systemet består af fire hoveddele:
+•	Client: Den del brugeren ser og interagerer med. Frontenden er lavet i TypeScript og bundlet med Vite for hurtig og effektiv udvikling.
+•	Server: Bagvedliggende logik og datasikkerhed håndteres i backend, bygget med Node.js og Express.js.
+•	Shared: Her ligger fælles definitioner og typer, som både frontend og backend bruger. Det sikrer, at data valideres og forstås ens på tværs af hele systemet.
+•	Migrations: Håndterer databaseversionering med Drizzle ORM, så ændringer i databasen sker sikkert og struktureret.
+4.2 Backend-opbygning
+Backenden i SAGSHUB er bygget med Express.js som server-motor. Den starter i index.ts med middleware i korrekt rækkefølge: først logger serveren alle anmodninger for fejlfinding, derefter aktiveres CORS for frontend-backend kommunikation, indkommende data behandles, og sessioner håndteres via express-session. Passport.js står for login-funktionen med sikre cookies, og adgangskoder gemmes aldrig som tekst, jeg bruger scrypt til beskyttelse mod læk.
+Systemet har en række RESTful API-endpoints, som f.eks.:
+•	/api/auth – login og logout
+•	/api/cases – oprette og hente sager
+•	/api/status – opdatere status for en sag
+Alle endpoints validerer input med type-sikre kontrakter fra shared-mappen og returnerer struktureret JSON. Global fejlhåndtering sikrer, at fejl registreres og vises korrekt uden systemcrash.
+Herunder ses Bilag 26 for request-flow fra frontend til database
+ 
+4.3 Databaseimplementering
+Jeg har opbygget databasen i SAGSHUB med PostgreSQL, som er en kraftfuld og stabil relationsdatabase. Til at styre databasen via kode har jeg brugt Drizzle ORM, som gør det muligt at definere databasefelter og relationer direkte i TypeScript, det gør udviklingen mere overskuelig og type-sikker.
+Databasen består af en række centrale tabeller, som bl.a.:
+•	cases: sager, der kobles til både kunder og statusser
+•	customers: informationer om kunder
+•	orders: tilknyttede ordredata
+•	rma: garanti- og returbehandling
+•	status_history: gemmer ændringer i status over tid
+Tabellerne hænger logisk sammen via fremmednøgler. F.eks. har en sag præcis én aktiv status, men også en historik af tidligere statustrin. Hver kunde kan have flere sager, og hver sag kan have flere ordrelinjer og statusændringer. Ved hjælp af Drizzle ORM kan jeg lave migrations, altså versionering af ændringer i databasen,  som gør det let at holde styr på, hvilke felter og tabeller der ændres hvornår. Til dagligt bruger jeg pgAdmin 4 som grafisk værktøj til at se og justere databasen.
+Se Bilag 27 for eksempel på tabel¬definition
+4.4 Frontend og brugergrænseflade
+Jeg har udviklet frontend-delen af SAGSHUB som en single-page application (SPA), altså en webapp, der henter siden én gang og derefter opdaterer indholdet dynamisk uden at reloade hele siden. Frontend er bygget med Vite (et hurtigt udviklingsværktøj) og TypeScript, som sikrer, at data og funktioner hænger korrekt sammen. Til brugergrænsefladen har jeg brugt Radix UI, som gør det nemt at bygge tilgængelige og fleksible komponenter.
+Komponentopbygning:
+•	UI-komponenter: knapper, inputfelter, tabeller, statusbadges og dropdowns,  alt det visuelle.
+•	Sidekomponenter: fx CaseList, OrderForm, CustomerView, der håndterer visning og redigering af sager, ordrer og kunder.
+•	Layout-komponenter: fx MenuLayout og WorkerSideNav, som styrer opsætning og navigation.
+State management: 
+Jeg bruger React Context til global tilstand (fx login-info) og React Query til at hente og cache data fra backend, det sikrer hurtige svartider og god brugeroplevelse.
+Funktionalitet:
+•	Login med validering og sessions-cookie
+•	Dashboard med sagsoversigt og farvekoder
+•	Detaljevisning af sager med mulighed for at redigere
+•	Tydelig visning af status og historik
+Alle API-kald valideres med delte typer mellem frontend og backend, så der ikke opstår misforståelser i data, det giver mere stabile og sikre funktioner.
+4.5 Nøglefunktionalitet og logik
+SAGSHUB håndterer hele sagsforløbet fra oprettelse til historik. Hver ændring gemmes automatisk med tidsstempel og medarbejder-ID for præcis sporing. Login sker via sikre sessioner med rollebaseret adgang. Frontend bruger Protected Routes og automatisk session-timeout for datasikkerhed. Drizzle ORM styrer database-versionering og struktur, mens CLI-scripts genererer realistiske testdata hurtigt. Frontend anvender React Query til caching og datasynkronisering. Søgefelter er optimeret med debounce, og alle lister har server-side pagination og global søgning for høj performance ved store datamængder.
+Se Bilag 28 for log over status¬ændringer i en sag.
+Herunder ses Bilag 32 for sagsbehandlings workflow
+ 
+4.6 Fejlhåndtering og logging
+På backend-siden er der oprettet en central "error handler" i Express, som automatisk fanger alle fejl, både synkrone og asynkrone. Fejlene bliver logget og sendt tilbage til klienten som struktureret JSON med en passende statuskode. Eksempler inkluderer:
+•	400 for ugyldigt input
+•	401 hvis brugeren ikke er logget ind
+•	403 hvis brugeren mangler adgang
+•	404 for ikke fundet
+•	500 for interne serverfejl
+I frontend fanges fejl i kritiske komponenter med Reacts Error Boundaries. De viser brugervenlige fejlbeskeder, så komponenter ikke crasher ved uventede fejl. Brugeren får tydelige notifikationer, f.eks. hvis netværket fejler, adgang nægtes eller der mangler påkrævede inputfelter.
+4.7 Sikkerheds Implementation
+Netværkssikkerheden implementeres gennem scrypt password hashing, cookie-baseret session management, og kontrollerede CORS-politikker. Systemet er designet til multi-device netværksadgang på port 3000.
+4.8 Performance Optimering
+For at sikre, at SAGSHUB er hurtigt og effektivt, også med mange brugere og store datamængder, er der implementeret forskellige optimeringer på både frontend og backend. Backend serveren anvender Node.js med REST API protokoller og JSON dataudveksling. PostgreSQL connection pooling sikrer skalerbar håndtering af netværkstrafik fra multiple enheder.
+Frontend:
+•	Der bruges lazy loading, som betyder at sider og komponenter først indlæses, når de skal bruges. Det gør, at applikationen starter hurtigere, fordi den ikke loader alt på én gang.
+•	Debouncing anvendes ved søgefelter. Det betyder, at der først sendes en søgeforespørgsel, når brugeren er færdig med at skrive, og ikke ved hvert tastetryk. Det mindsker antallet af API-kald og giver en hurtigere oplevelse.
+•	React Query styrer, hvornår data skal hentes, caches og opdateres. Det sikrer, at applikationen ikke henter unødvendig data igen og igen, men kun når det er relevant.
+•	Komponenter opdateres kun, når det er nødvendigt, takket være memoisering, som sparer ressourcer ved at genbruge tidligere resultater.
+Backend:
+•	Der anvendes database connection pooling, som betyder, at serveren genbruger eksisterende forbindelser til databasen i stedet for at åbne en ny hver gang. Det gør databehandling hurtigere og mindre belastende.
+•	Selective data fetching bruges til kun at hente de felter, der faktisk skal bruges, i stedet for hele databasen,  hvilket reducerer svartiden.
+•	Forespørgsler er optimeret med indekser og effektive JOINs, så databasen hurtigt kan finde og koble data, selv i store tabeller.
+•	Der er tilføjet rate limiting og throttling, som forhindrer misbrug og overbelastning af systemet. Det betyder f.eks., at en bruger ikke kan sende 1000 login-forsøg på få sekunder.
+Disse tekniske tiltag gør systemet hurtigere, mere stabilt og klar til at håndtere mange samtidige brugere, uden at gå på kompromis med brugervenligheden.
+Test og Resultater
+5.1 Overordnet teststrategi
+Testningen af SAGSHUB har været systematisk opbygget og fordelt på flere niveauer: manuel funktionstest, automatisk testdatagenerering, performance-optimering og systematisk brugertest. Målet har været at sikre korrekt funktionalitet, sikkerhed, robusthed og en god brugeroplevelse gennem praktisk anvendelse og iterativ fejlretning.
+Automatisk testdatagenerering
+Et omfattende system af scripts til testdatagenerering sikrer konsistent testmiljø:
+•	Hovedscript (server/scripts/generateTestData.ts) genererer realistiske danske kunder med navn, adresse, telefon og email
+•	Opretter sager med korrekte case-numre (REP, REK, KLA, AND)
+•	Tilknytter ordrer og RMA-processer til sager
+•	Opretter statushistorik og medarbejderbrugere
+Specialiserede scripts:
+•	generate-cases.ts: Genererer store mængder testsager med varierende status
+•	generate-orders.ts: Opretter ordredata med leverandører og priser
+•	generate-rma.ts: Simulerer RMA-processer med fejlbeskrivelser
+•	insert-test-internal-cases.ts: Opretter interne medarbejdersager
+Dette system gør det muligt at etablere et konsistent testmiljø med tusindvis af realistiske data med ét kommando-kald og reducerer fejlkilder ved gentagne testforløb.
+Herunder Ses Bilag 29 for realistiske testdata indsat under testforløbet.
+ 
+Manuelle tests og brugeroplevelse
+Systemet inkluderer en dedikeret test-api side (test-api.tsx) til systematisk verifikation af API-endpoints.
+Testede endpoints:
+•	 /api/orders - Ordrehåndtering og pagination
+•	 /api/customers - Kundedatabase og søgning
+•	 /api/cases - Sagsstyring og statusopdateringer
+Manuel testning af kernefunktioner:
+•	Login-flow for både medarbejdere (brugernavn/password) og kunder (telefon/sagsnummer)
+•	CRUD-operationer på sager, kunder og ordrer
+•	Statusopdateringer med historik og kommentarer
+•	Formularvalidering og fejlbeskeder
+•	Navigation og sideflow mellem funktioner
+•	Rollebaseret adgang og sikkerhedsbegrænsninger
+Komponenter som CaseForm.tsx, CaseList.tsx og OrderForm.tsx er systematisk testet for funktionalitet, datavalidering og brugeroplevelse gennem manual gennemgang.
+Brugerfeedback og iterativ forbedring
+Systemet er testet af medarbejdere hos TJData gennem reelle arbejdsgange. Deres feedback resulterede i konkrete forbedringer:
+•	Sprogoptimering: Klarere danske tekster i labels og felter
+•	Statusvisualisering: Farvekodede statusbadges med forklarende tekst
+•	Menustruktur: Optimeret navigation mellem sager, kunder og ordrer
+•	Fejlbeskeder: Brugervenlige meddelelser ved valideringsfejl
+Performance og stresstest
+Systemet er optimeret til at håndtere store datamængder gennem flere lag.
+Backend optimering:
+•	Server-side pagination med LIMIT/OFFSET i PostgreSQL queries
+•	Connection pooling til databasen for effektiv ressourcehåndtering
+•	Indexering på søgefelter som case_number, customer navn og telefon
+•	SQL query optimering med selective field fetching
+Frontend optimering:
+•	React Query caching med staleTime og intelligent invalidation
+•	Lazy loading af komponenter og data
+•	Pagination på alle store lister (sager, kunder, ordrer)
+•	Optimistic updates for bedre brugeroplevelse
+Systemet er testet med over 3000 genererede sager og kunder og viser stabil performance ved store datamængder.
+Fejlhåndtering og stabilitet
+Frontend fejlhåndtering:
+•	Error Boundaries implementeret i React komponenter til at fange UI-fejl
+•	Graceful degradation med loading states og fallback visninger
+Backend fejlhåndtering:
+•	Central error middleware i Express.js fanger alle fejl
+•	Strukturerede JSON responses med passende HTTP-statuskoder (400, 401, 403, 404, 500)
+•	Database transaction rollback ved fejl i kritiske operationer
+•	Input validation på alle API endpoints
+Robusthedstest:
+Jeg har systematisk fremprovokeret fejlsituationer som manglende databaseforbindelse, uautoriserede API-requests, ugyldige formulardata og session timeout. Alle test viste, at systemet reagerer korrekt med brugervenlige fejlbeskeder og logging.
+5.2 Konklusion på testfasen
+Teststrategien har fokuseret på praktisk anvendelse og systematisk dataverifikation frem for automatiserede tests. Alle kernefunktioner fungerer stabilt.
+Verificerede funktioner:
+•	Login og session-håndtering for både medarbejdere og kunder
+•	CRUD-operationer på sager, kunder og ordrer
+•	Statusopdateringer med komplet historik
+•	Rollebaseret adgangskontrol
+•	Performance ved store datamængder
+•	Fejlhåndtering og brugervenlige error states
+Systemets styrker:
+•	Robust fejlhåndtering på alle niveauer
+•	Skalerbar arkitektur med pagination og caching
+•	Intuitiv brugergrænseflade testet af reelle brugere
+•	Konsistent testmiljø gennem automatisk datagenerering
+SAGSHUB er dokumenteret som en stabil, skalerbar prototype, der gennem omfattende manuel testning og brugerfeedback er blevet optimeret til praktisk anvendelse i mindre virksomheder som TJData.
+Analyse og Diskussion
+6.1 Systemvurdering
+SAGSHUB er blevet udviklet som en funktionsdygtig prototype på et digitalt sagsstyringssystem. Den er testet med realistiske datasæt og viser sig stabil, skalerbar og velstruktureret. Systemet adskiller tydeligt brugerflade (frontend) fra selve logikken og databearbejdningen (backend). Systemet håndterer både sager, kunder og ordrer, med funktioner som statusopdateringer, historik, interne noter, samt meget andet. Det er bygget med moderne værktøjer som TypeScript, PostgreSQL og Drizzle ORM for at sikre datakvalitet og robusthed. Sikkerheden er tænkt ind fra start med login via sessioner, adgangskode-hashing og datavalidering.
+Selvom det stadig er en prototype, er koden bygget op, så det er nemt at tilføje nye funktioner senere, fx rollebaseret adgangskontrol, realtidsopdateringer og datacaching.
+Herunder Ses Bilag 30 for samlet evaluering af nøgleområder.
+ 
+6.2 Styrker
+TypeScript i hele systemet sikrer, at fejl fanges allerede under udvikling, ikke først, når brugeren klikker.
+Modulær opbygning betyder, at hver del af systemet har sit eget formål. Det gør det nemt at finde fejl og bygge videre.
+Frontend er opdelt i tre lag: UI-komponenter (fx knapper og tabeller), sider (fx sagsvisning) og layouts (navigation, struktur).
+React Query og Context API bruges til at holde styr på data og brugerstatus, hurtigt og effektivt.
+Database med PostgreSQL og Drizzle ORM giver stærke relationer, hurtige forespørgsler og høj sikkerhed.
+Fejlhåndtering og REST API er ensartet og let at udvide eller koble sammen med andre systemer.
+6.3 Udfordringer og begrænsninger
+Selvom jeg tidligere har arbejdet med MongoDB og enkelte cloud-baserede projekter (bl.a. i AWS), samt lidt backend og routing i forbindelse med et projekt om elpriser, vejrdata og AI, var udviklingen af SAGSHUB alligevel en teknisk udfordring, særligt fordi det var mit første større projekt med fuld stack, sikkerhed og kompleks frontend.
+Frontend som største udfordring:
+Jeg havde aldrig tidligere arbejdet med React eller bygget en fuld brugergrænseflade fra bunden. Det betød, at jeg skulle lære både komponentstruktur, tilstandshåndtering og brugerinteraktioner undervejs. Det var særligt vanskeligt at koble frontend korrekt til backend og sikre, at formularer, validering, UI-feedback og sessioner fungerede sammen. Mange af de teknologier, jeg brugte, såsom React Query, Radix UI, Context API og SPA-routing med wouter, var nye for mig og krævede selvstændig research.
+Backend og databaseskift:
+Selvom jeg havde erfaring med MongoDB, var det første gang, jeg arbejdede med en relationel database som PostgreSQL og ORM-værktøjer som Drizzle. Det krævede tilvænning at arbejde med normalisering, fremmednøgler og SQL-lignende migrations i stedet for de mere fleksible, schema-løse strukturer, jeg kendte fra tidligere. Jeg skulle lære at opbygge en datamodel med høj integritet, og samtidig forstå, hvordan data valideres og versionstyres med TypeScript og Drizzle ORM.
+Sproget og stakken:
+SAGSHUB er mit første større projekt i TypeScript, både på frontend og backend. Tidligere har jeg kun skrevet små Python-scripts og backend-lignende kode i mindre eksperimenter. Derfor var det en stor opgave at forstå TypeScripts typer, interfaces og hvordan man bruger typesikkerhed aktivt på tværs af hele stacken. I starten tog det meget tid at sætte sig ind i opsætning, syntax og fejltolkning.
+Andre tekniske barrierer:
+•	Session management og CORS: Gennem udviklingen opstod der problemer med SameSite-cookies og sessions, især i udviklingsmiljøet. Det tog tid at forstå credential-config og sikre korrekt opsætning mellem domæner.
+•	Historik og status-tracking i databasen: Dette krævede flere refaktoreringer og var vanskeligere at designe, end jeg havde forudset.
+•	Testdata og migrations: Hyppige ændringer i databasen betød, at seed-scripts og testdata skulle opdateres løbende. Dette tog tid og førte til mange små bugs.
+•	Performance ved store datasæt: Først senere i processen fik jeg optimeret queries, pagination og søgning til at kunne håndtere større mængder data.
+•	Manuel testning vs. automation: I stedet for automatiserede tests valgte jeg at fokusere på omfattende testdatagenerering og systematisk manuel gennemgang. Dette gav bedre indsigt i brugeroplevelsen, men betød også mere tidskrævende kvalitetssikring.
+Trods disse udfordringer lykkedes det at bygge en stabil prototype, og jeg lærte meget af at finde løsninger på reelle problemer, både som udvikler og som systemarkitekt.
+6.4 Faglig og teknisk læring
+Udviklingen af SAGSHUB har været min hidtil mest omfattende tekniske opgave og har givet mig en praktisk og dybdegående forståelse for moderne webudvikling, fra datamodellering og API-design til brugergrænseflader og performanceoptimering.
+Overgang fra småprojekter til fuld applikation
+Tidligere har jeg kun arbejdet med mindre Python-scripts, bl.a. til elektronikprojekter og valgfag som kameragenkendelse. Jeg havde eksperimenteret lidt med MongoDB, AI og AWS, men aldrig bygget en fuld applikation med backend, database og frontend.
+Backend og type-sikkerhed
+Jeg havde ingen rigtig erfaring med TypeScript eller Express.js før dette. Det var en stejl læringskurve at lære sessions, routing, validering og struktur. Jeg lærte at bruge Passport.js og express-session til login, og TypeScript hjalp mig med at undgå fejl og holde styr på datatyper.
+Databaselæring med Drizzle og PostgreSQL
+Mit første større arbejde med relationel database, PostgreSQL og Drizzle ORM, lærte mig normalisering, relationer og migrations. Kombinationen med TypeScript gav compile-time sikkerhed. pgAdmin hjalp med at inspicere data under udvikling.
+Frontend som største udfordring
+Jeg havde aldrig arbejdet med React før. Det var svært at forstå komponentstruktur, state management og routing. At forbinde UI og database gennem forms og validering tog tid. Men jeg lærte React Query og Context API, og fik styr på caching, optimistic updates og genbrugelige komponenter.
+Arkitektur og opbygning
+Jeg lærte at dele koden op i adskilte lag (frontend, backend, shared), og bruge principper som single responsibility og separation of concerns. Det har gjort koden lettere at forstå og vedligeholde.
+Tests og stabilitet
+Jeg udviklede et omfattende system til automatisk generering af testdata med realistiske danske navne, adresser og forretningsscenarier. Drizzles CLI og automatiserede seed-scripts gjorde det nemt at genskabe konsistente testmiljøer med tusindvis af datapunkter. Gennem manuel testning og bruger-feedback fik jeg erfaring med systematisk kvalitetssikring og iterativ fejlretning.
+6.5 Perspektivering
+Selvom SAGSHUB stadig er en prototype, er systemet udviklet med tanke på fremtidig udvidelse. Der er bevidst arbejdet med en fleksibel og skalerbar arkitektur, så flere funktioner nemt kan tilføjes senere.
+Mulige næste skridt kunne være:
+Backend:
+•	Rollebaseret adgangsstyring (RBAC), hvor forskellige brugertyper får forskellige rettigheder.
+•	Live-opdateringer i brugerfladen via WebSockets, fx når en sag skifter status.
+•	Integration til tredjepartsservices som e-mail og SMS, så brugere automatisk får besked ved ændringer.
+Frontend:
+•	Forbedret performance med code splitting og lazy loading, så kun nødvendige komponenter indlæses.
+•	Forbedret brugeroplevelse (UX) med fx offline support, mobiloptimering og PWA-teknologi (Progressive Web Apps), så systemet også fungerer på farten.
+Deployment og drift:
+•	Raspberry Pi 5: Indlejret systemløsning med backend og PostgreSQL i Docker-compose-stack på Pi 5 som dedikeret 24/7 server-enhed. Netværksadgang via LAN/VPN med HTTP/HTTPS protokoller og WiFi/Ethernet forbindelse. Linux OS understøtter SSH administration og GPIO interfacing til fremtidig IoT-integration. Løsningen sikrer lokal netværkskontrol, eliminerer cloud-afhængighed, og reducerer driftsomkostninger betydeligt
+•	Desktop-klient (Electron/Tauri): React-koden pakkes som en lille Windows/macOS-app til medarbejdere, hvor dashboardet kan køre lokalt og synkronisere mod Pi-serveren.
+•	Opsætning af overvågning og fejllogning med værktøjer som Grafana, Prometheus eller Sentry, så eventuelle fejl hurtigt opdages.
+•	Udrulning på moderne cloud-platforme som Vercel, Render eller via Docker på AWS for bedre tilgængelighed og skalerbarhed.
+6.6 Tekniske forbedringer
+Der er også flere tekniske områder, hvor systemet kan optimeres yderligere:
+Frontend:
+•	Implementering af React Suspense kan gøre håndteringen af asynkrone komponenter mere elegant og smidig.
+•	Brug af Service Workers vil gøre det muligt at understøtte offline-brug og forbedre performance på ustabile forbindelser.
+•	En detaljeret analyse af bundle-størrelse kunne identificere tunge filer, der bremser indlæsningen, og give mulighed for målrettet optimering.
+Backend og database:
+•	Caching af ofte anvendte forespørgsler kan reducere svartider og minimere belastningen på databasen.
+•	Implementering af rate limiting beskytter API’et mod misbrug, fx brute-force loginforsøg.
+•	Yderligere optimering af SQL-forespørgsler og indeksering kan forbedre systemets hastighed ved store datamængder.
+Netværkssikkerhed og robusthed:
+•	Udvidede sikkerhedslag med TLS/HTTPS encryption, session rotation og input sanitization via Zod validation kan styrke beskyttelsen mod SQL injection og XSS-angreb.
+•	Firewall-konfiguration på Raspberry Pi deployment med begrænsede porte og overvågning af netværkstrafik kan forbedre systemets sikkerhedsprofil.
+•	Hardware resilience med UPS backup, SD-kort redundancy og thermal monitoring kan sikre stabil 24/7 drift og automatisk fejlhåndtering.
+Test automation og kvalitetssikring:
+•	Implementering af Jest til unit tests, Supertest til API-tests og Playwright til end-to-end tests kan automatisere kvalitetskontrollen.
+•	GitHub Actions CI/CD pipeline med Docker testcontainers kan sikre, at alle ændringer testes automatisk før deployment.
+•	Coverage reports og performance benchmarks kan dokumentere testkvalitet og validere systemets ydeevne under forskellige belastningsscenarier.
+Automatisering og stabil drift:
+•	Etablering af en CI/CD-pipeline (Continuous Integration/Deployment) vil gøre det muligt at opdatere systemet automatisk og sikkert.
+•	Kombineret med automatiske tests og overvågning kan det sikre høj driftssikkerhed og hurtig fejlretning, hvis noget går galt.
+Konklusion
+SAGSHUB er udviklet som svar på TJDatas behov for et mere effektivt og brugervenligt sagsstyringssystem, som kan erstatte manuelle arbejdsgange og et forældet system fra 2007. Prototypen samler sager ét sted og automatiserer nøglefunktioner som statusopdateringer, historik, kundehåndtering og RMA-processer. Det reducerer fejl, fjerner dobbeltarbejde og giver både medarbejdere og kunder bedre overblik og sporbarhed. Systemet er bygget med moderne webteknologier og datasikkerhed i fokus og har gennemgået grundig testning for funktionalitet og performance. Løsningen er skræddersyet til en mindre virksomhed, og i modsætning til tunge standardsystemer er den let at videreudvikle og implementere. Projektet viser, at automatisering og digitalisering kan skabe reel værdi i praksis, også med begrænsede ressourcer.
+Litteraturliste
+Drizzle Team. (2024). Drizzle ORM Documentation. https://orm.drizzle.team/ 
+Express.js. (2024). Express - Node.js web application framework. https://expressjs.com/ 
+Facebook Inc. (2024). React – A JavaScript library for building user interfaces. https://react.dev/ 
+Git. (2024). Open-source distributed version control system. https://git-scm.com/ 
+Microsoft. (2024). TypeScript Handbook. https://www.typescriptlang.org/docs/ 
+Molefrog. (2024). Wouter - A minimalist-friendly routing library for React. https://github.com/molefrog/wouter 
+Motdotla. (2024). dotenv documentation. https://github.com/motdotla/dotenv 
+Node.js Foundation. (2024). Node.js Documentation. https://nodejs.org/en/docs/ 
+Node.js Foundation. (2024). Node.js Crypto Module - scrypt function. https://nodejs.org/api/crypto.html 
+OpenAI. (2024). ChatGPT. Fejlsøgning og guide. https://chat.openai.com/
+Passport.js. (2024). Simple, unobtrusive authentication for Node.js. http://www.passportjs.org/ 
+pgAdmin Team. (2024). pgAdmin 4 Documentation. https://www.pgadmin.org/docs/
+PostgreSQL Global Development Group. (2024). PostgreSQL Documentation. https://www.postgresql.org/docs/ 
+Radix UI. (2024). Radix UI Primitives Documentation. https://www.radix-ui.com/docs/primitives/overview/introduction 
+Schwaber, K. & Sutherland, J. (2020). The Scrum Guide. https://scrumguides.org/ 
+Tailwind Labs. (2024). Tailwind CSS Documentation. https://tailwindcss.com/docs/ 
+TanStack. (2024). React Query (TanStack Query) Documentation. https://tanstack.com/query/latest/ 
+Visual Studio Code. (2024). Code editor. https://code.visualstudio.com/ 
+Windfeld, R. (2025). SAGSHUB prototype - GitHub repository. https://github.com/Rwindfeld/Sagshub 

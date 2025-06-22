@@ -1,6 +1,6 @@
-import { useState } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
-import { useAuth } from "@/hooks/auth";
+import { useState, useEffect } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/context/auth-context";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { format } from "date-fns";
@@ -47,11 +47,17 @@ interface InternalCase {
 
 export default function InternalCasesPage() {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const [tabValue, setTabValue] = useState("all");
   const [page, setPage] = useState(1);
   
+  // Invalidate unread count cache when component mounts to ensure fresh data
+  useEffect(() => {
+    queryClient.invalidateQueries({ queryKey: ["/api/internal-cases/unread-count"] });
+  }, [queryClient]);
+
   // Create the query params based on the tab selected
   const getQueryParams = () => {
     const onlySent = tabValue === "sent";
@@ -87,7 +93,7 @@ export default function InternalCasesPage() {
 
   const markAsReadMutation = useMutation({
     mutationFn: async (id: number) => {
-      const res = await apiRequest("PATCH", `/api/internal-cases/${id}/mark-as-read`);
+      const res = await apiRequest("PATCH", `/api/internal-cases/${id}/read`);
       return res.json();
     },
     onSuccess: () => {
@@ -111,6 +117,70 @@ export default function InternalCasesPage() {
       markAsReadMutation.mutate(internalCase.id);
     }
   };
+
+  function renderInternalCases(data: any) {
+    if (!data) {
+      return <div className="text-center py-8">Indlæser interne sager...</div>;
+    }
+
+    if (data.items.length === 0) {
+      return (
+        <div className="text-center py-8 text-muted-foreground">
+          Ingen interne sager fundet
+        </div>
+      );
+    }
+
+    return data.items.map((internalCase: InternalCase) => (
+      <Card 
+        key={internalCase.id} 
+        className={!internalCase.read && internalCase.receiverId === user?.id ? "border-primary" : undefined}
+      >
+        <CardHeader className="pb-2">
+          <div className="flex justify-between">
+            <CardTitle className="text-base flex items-center gap-2">
+              {!internalCase.read && internalCase.receiverId === user?.id && (
+                <div className="w-2 h-2 rounded-full bg-red-500 mr-1"></div>
+              )}
+              Sag: {internalCase.caseCaseNumber} - {internalCase.customerName}
+            </CardTitle>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm">
+                  <ChevronDown className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => handleViewCase(internalCase)}>
+                  <Eye className="h-4 w-4 mr-2" />
+                  Vis sag
+                </DropdownMenuItem>
+                {!internalCase.read && internalCase.receiverId === user?.id && (
+                  <DropdownMenuItem onClick={() => markAsReadMutation.mutate(internalCase.id)}>
+                    <Badge className="h-4 mr-2">
+                      Markér som læst
+                    </Badge>
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+          <CardDescription>
+            {internalCase.senderId === user?.id ? (
+              <>Til: <span className="font-medium">{internalCase.receiverName}</span></>
+            ) : (
+              <>Fra: <span className="font-medium">{internalCase.senderName}</span></>
+            )}
+            {" • "}
+            {format(new Date(internalCase.createdAt), "d. MMM yyyy HH:mm", { locale: da })}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="whitespace-pre-wrap">{internalCase.message}</div>
+        </CardContent>
+      </Card>
+    ));
+  }
 
   return (
     <MenuLayout>
@@ -198,68 +268,4 @@ export default function InternalCasesPage() {
       </div>
     </MenuLayout>
   );
-
-  function renderInternalCases(data: any) {
-    if (!data) {
-      return <div className="text-center py-8">Indlæser interne sager...</div>;
-    }
-
-    if (data.items.length === 0) {
-      return (
-        <div className="text-center py-8 text-muted-foreground">
-          Ingen interne sager fundet
-        </div>
-      );
-    }
-
-    return data.items.map((internalCase: InternalCase) => (
-      <Card 
-        key={internalCase.id} 
-        className={!internalCase.read && internalCase.receiverId === user?.id ? "border-primary" : undefined}
-      >
-        <CardHeader className="pb-2">
-          <div className="flex justify-between">
-            <CardTitle className="text-base flex items-center gap-2">
-              {!internalCase.read && internalCase.receiverId === user?.id && (
-                <div className="w-2 h-2 rounded-full bg-red-500 mr-1"></div>
-              )}
-              Sag: {internalCase.caseCaseNumber} - {internalCase.customerName}
-            </CardTitle>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm">
-                  <ChevronDown className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => handleViewCase(internalCase)}>
-                  <Eye className="h-4 w-4 mr-2" />
-                  Vis sag
-                </DropdownMenuItem>
-                {!internalCase.read && internalCase.receiverId === user?.id && (
-                  <DropdownMenuItem onClick={() => markAsReadMutation.mutate(internalCase.id)}>
-                    <Badge className="h-4 mr-2">
-                      Markér som læst
-                    </Badge>
-                  </DropdownMenuItem>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-          <CardDescription>
-            {internalCase.senderId === user?.id ? (
-              <>Til: <span className="font-medium">{internalCase.receiverName}</span></>
-            ) : (
-              <>Fra: <span className="font-medium">{internalCase.senderName}</span></>
-            )}
-            {" • "}
-            {format(new Date(internalCase.createdAt), "d. MMM yyyy HH:mm", { locale: da })}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="whitespace-pre-wrap">{internalCase.message}</div>
-        </CardContent>
-      </Card>
-    ));
-  }
 } 

@@ -37,7 +37,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { InternalCaseForm } from "@/components/internal-case-form-copy";
+import { InternalCaseForm } from "@/components/internal-case-form";
 import { CustomerView } from "@/components/customer-view";
 import { isCaseInAlarm, getAlarmMessage } from '@shared/alarm';
 import { PrintFollowupLayout } from "@/components/print-followup-layout";
@@ -329,31 +329,33 @@ export default function CaseDetails({ params, id, isCustomerView = false }: Case
                   <dd className="text-sm whitespace-pre-wrap">{case_.accessories}</dd>
                 </div>
               )}
-              {case_.importantNotes && (
+              {!isCustomerView && case_.importantNotes && (
                 <div className="col-span-2">
                   <dt className="text-sm font-medium text-muted-foreground">Vigtige bemærkninger</dt>
                   <dd className="text-sm whitespace-pre-wrap">{case_.importantNotes}</dd>
                 </div>
               )}
-              <div className="col-span-2">
-                <dt className="text-sm font-medium text-muted-foreground">Kode, Logininfo og Pinkode</dt>
-                {case_.status === 'completed' ? (
-                  <dd className="text-sm text-gray-400 bg-gray-100 p-2 rounded border">
-                    [Slettet af sikkerhedshensyn - sag afsluttet]
-                  </dd>
-                ) : case_.loginInfo ? (
-                  <dd className="text-sm whitespace-pre-wrap bg-yellow-50 p-2 rounded border">
-                    {case_.loginInfo}
-                    <div className="text-xs text-muted-foreground mt-1">
-                      ⚠️ Denne information slettes automatisk når sagen afsluttes
-                    </div>
-                  </dd>
-                ) : (
-                  <dd className="text-sm text-gray-500 bg-gray-50 p-2 rounded border">
-                    Ingen loginoplysninger angivet
-                  </dd>
-                )}
-              </div>
+              {!isCustomerView && (
+                <div className="col-span-2">
+                  <dt className="text-sm font-medium text-muted-foreground">Kode, Logininfo og Pinkode</dt>
+                  {case_.status === 'completed' ? (
+                    <dd className="text-sm text-gray-400 bg-gray-100 p-2 rounded border">
+                      [Slettet af sikkerhedshensyn - sag afsluttet]
+                    </dd>
+                  ) : case_.loginInfo ? (
+                    <dd className="text-sm whitespace-pre-wrap bg-yellow-50 p-2 rounded border">
+                      {case_.loginInfo}
+                      <div className="text-xs text-muted-foreground mt-1">
+                        ⚠️ Denne information slettes automatisk når sagen afsluttes
+                      </div>
+                    </dd>
+                  ) : (
+                    <dd className="text-sm text-gray-500 bg-gray-50 p-2 rounded border">
+                      Ingen loginoplysninger angivet
+                    </dd>
+                  )}
+                </div>
+              )}
               <div className="col-span-2">
                 <dt className="text-sm font-medium text-muted-foreground">Købsoplysninger</dt>
                 <dd className="text-sm">
@@ -556,31 +558,33 @@ export default function CaseDetails({ params, id, isCustomerView = false }: Case
                   <dd className="text-sm whitespace-pre-wrap">{case_.accessories}</dd>
                 </div>
               )}
-              {case_.importantNotes && (
+              {!isCustomerView && case_.importantNotes && (
                 <div className="col-span-2">
                   <dt className="text-sm font-medium text-muted-foreground">Vigtige bemærkninger</dt>
                   <dd className="text-sm whitespace-pre-wrap">{case_.importantNotes}</dd>
                 </div>
               )}
-              <div className="col-span-2">
-                <dt className="text-sm font-medium text-muted-foreground">Kode, Logininfo og Pinkode</dt>
-                {case_.status === 'completed' ? (
-                  <dd className="text-sm text-gray-400 bg-gray-100 p-2 rounded border">
-                    [Slettet af sikkerhedshensyn - sag afsluttet]
-                  </dd>
-                ) : case_.loginInfo ? (
-                  <dd className="text-sm whitespace-pre-wrap bg-yellow-50 p-2 rounded border">
-                    {case_.loginInfo}
-                    <div className="text-xs text-muted-foreground mt-1">
-                      ⚠️ Denne information slettes automatisk når sagen afsluttes
-                    </div>
-                  </dd>
-                ) : (
-                  <dd className="text-sm text-gray-500 bg-gray-50 p-2 rounded border">
-                    Ingen loginoplysninger angivet
-                  </dd>
-                )}
-              </div>
+              {!isCustomerView && (
+                <div className="col-span-2">
+                  <dt className="text-sm font-medium text-muted-foreground">Kode, Logininfo og Pinkode</dt>
+                  {case_.status === 'completed' ? (
+                    <dd className="text-sm text-gray-400 bg-gray-100 p-2 rounded border">
+                      [Slettet af sikkerhedshensyn - sag afsluttet]
+                    </dd>
+                  ) : case_.loginInfo ? (
+                    <dd className="text-sm whitespace-pre-wrap bg-yellow-50 p-2 rounded border">
+                      {case_.loginInfo}
+                      <div className="text-xs text-muted-foreground mt-1">
+                        ⚠️ Denne information slettes automatisk når sagen afsluttes
+                      </div>
+                    </dd>
+                  ) : (
+                    <dd className="text-sm text-gray-500 bg-gray-50 p-2 rounded border">
+                      Ingen loginoplysninger angivet
+                    </dd>
+                  )}
+                </div>
+              )}
               <div className="col-span-2">
                 <dt className="text-sm font-medium text-muted-foreground">Købsoplysninger</dt>
                 <dd className="text-sm">

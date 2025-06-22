@@ -54,9 +54,6 @@ export function useOrdersQuery(options: UseOrdersQueryOptions = {}) {
     refetchOnWindowFocus: false,
     refetchOnMount: true,
     refetchOnReconnect: true,
-    onError: (error) => {
-      console.error('Error fetching orders:', error);
-    },
   });
 }
 
@@ -72,14 +69,10 @@ export function useOrderQuery(id: number) {
     retry: 3,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
     staleTime: 1000 * 60, // 1 minute
-    cacheTime: 1000 * 60 * 5, // 5 minutes
+    gcTime: 1000 * 60 * 5, // 5 minutes
     refetchOnWindowFocus: true,
     refetchOnMount: true,
     refetchOnReconnect: true,
-    useErrorBoundary: true,
-    onError: (error) => {
-      console.error('Error fetching order:', error);
-    },
     onSettled: () => {
       // Invalidate and refetch
       queryClient.invalidateQueries();
@@ -101,10 +94,6 @@ export function useCreateOrderMutation() {
     },
     retry: 3,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
-    useErrorBoundary: true,
-    onError: (error) => {
-      console.error('Error creating order:', error);
-    },
     onSettled: () => {
       // Invalidate and refetch
       queryClient.invalidateQueries();
@@ -126,10 +115,6 @@ export function useUpdateOrderMutation() {
     },
     retry: 3,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
-    useErrorBoundary: true,
-    onError: (error) => {
-      console.error('Error updating order:', error);
-    },
     onSettled: () => {
       // Invalidate and refetch
       queryClient.invalidateQueries();
@@ -150,10 +135,6 @@ export function useDeleteOrderMutation() {
     },
     retry: 3,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
-    useErrorBoundary: true,
-    onError: (error) => {
-      console.error('Error deleting order:', error);
-    },
     onSettled: () => {
       // Invalidate and refetch
       queryClient.invalidateQueries();

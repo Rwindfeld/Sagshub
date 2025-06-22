@@ -635,19 +635,31 @@ export function CaseList({
                       </TableCell>
                     </TableRow>
                   ) : (
-                    displayedCasesFiltered.map((case_) => {
+                    displayedCasesFiltered.map((case_, index) => {
                       const isAlarm = showAlarmIndicator && isCaseInAlarm(case_, statusHistoryMap[case_.id] || []);
+                      const isEven = index % 2 === 0;
                       
                       return (
                         <TableRow
                           key={case_.id}
-                          className={`cursor-pointer hover:bg-muted/50 ${isAlarm ? 'border-red-500 bg-red-50' : ''}`}
+                          className={`cursor-pointer hover:bg-muted/50 ${
+                            isAlarm 
+                              ? 'border-red-500 bg-red-50' 
+                              : isEven 
+                                ? 'bg-white' 
+                                : 'bg-gray-50'
+                          }`}
                           onClick={() => {
-                            if (isCustomerView) {
-                              setLocation(`/case/${case_.id}`);
-                            } else {
-                              setLocation(`/worker/cases/${case_.id}`);
-                            }
+                            console.log("CaseList: Case clicked");
+                            console.log("CaseList: isCustomerView:", isCustomerView);
+                            console.log("CaseList: case_.id:", case_.id);
+                            
+                            const targetUrl = isCustomerView 
+                              ? `/case/${case_.id}` 
+                              : `/worker/cases/${case_.id}`;
+                            
+                            console.log("CaseList: Navigating to:", targetUrl);
+                            setLocation(targetUrl);
                           }}
                         >
                           <TableCell>{case_.caseNumber}</TableCell>

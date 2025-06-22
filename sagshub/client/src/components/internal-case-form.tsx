@@ -78,7 +78,7 @@ export function InternalCaseForm({ caseId, onSuccess }: InternalCaseFormProps) {
           </SelectTrigger>
           <SelectContent>
             {isLoadingWorkers ? (
-              <SelectItem value="" disabled>Indlæser medarbejdere...</SelectItem>
+              <SelectItem value="loading" disabled>Indlæser medarbejdere...</SelectItem>
             ) : (
               workers?.filter(worker => worker.isWorker)
                 .map((worker) => (

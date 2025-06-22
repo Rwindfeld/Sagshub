@@ -56,5 +56,28 @@
   body {
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
+    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+    min-height: 100vh;
+  }
+}
+
+@layer components {
+  /* Zebra striping for alle tabeller */
+  .table tbody tr:nth-child(even) {
+    @apply bg-gray-50;
+  }
+  
+  .table tbody tr:nth-child(odd) {
+    @apply bg-white;
+  }
+  
+  /* Hover effekt der overskriver zebra striping */
+  .table tbody tr:hover {
+    @apply bg-blue-50 !important;
+  }
+  
+  /* Alarm rows skal have rød baggrund og overskrive zebra striping */
+  .table tbody tr.alarm-row {
+    @apply bg-red-50 border-red-500 !important;
   }
 }

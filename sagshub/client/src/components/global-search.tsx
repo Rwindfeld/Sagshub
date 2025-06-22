@@ -57,14 +57,6 @@ export function GlobalSearch({ onSearch, minSearchLength = 2 }: GlobalSearchProp
       }
     },
     enabled: debouncedSearch?.trim().length >= minSearchLength,
-    onError: (error) => {
-      console.error("GlobalSearch: query error:", error);
-      toast({
-        title: "Fejl ved søgning",
-        description: error instanceof Error ? error.message : "Der opstod en fejl under søgningen",
-        variant: "destructive",
-      });
-    },
   });
 
   useEffect(() => {
@@ -121,7 +113,14 @@ export function GlobalSearch({ onSearch, minSearchLength = 2 }: GlobalSearchProp
                   onClick={() => {
                     console.log("GlobalSearch: clicking on result:", result);
                     console.log("GlobalSearch: navigating to:", result.link);
-                    setLocation(result.link);
+                    console.log("GlobalSearch: result.id:", result.id);
+                    console.log("GlobalSearch: result.type:", result.type);
+                    
+                    // Sikrer at vi har det korrekte link format
+                    const targetLink = result.link;
+                    console.log("GlobalSearch: final target link:", targetLink);
+                    
+                    setLocation(targetLink);
                     setShowResults(false);
                     setSearchTerm("");
                   }}

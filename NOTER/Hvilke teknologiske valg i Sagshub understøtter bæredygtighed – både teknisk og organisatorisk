@@ -1,0 +1,65 @@
+Teknisk bæredygtighed.
+
+Jeg har tænkt bæredygtighed ind både teknisk og organisatorisk i SagsHub.
+Som jeg beskriver i rapportens perspektivering, har jeg gjort det muligt at implementere serveren på en Raspberry Pi. Det betyder, at hele systemet kan køre på en lille, energieffektiv enhed, der kan stå tændt 24/7 i virksomheden. Det reducerer strømforbrug, eliminerer cloud-afhængighed og gør det nemt at administrere via lokalnetværk eller SSH.
+Jeg har valgt open source-teknologier som Node.js, React, PostgreSQL og Drizzle ORM, som gør systemet nemt at vedligeholde og videreudvikle – også for andre udviklere.
+Desuden har jeg bygget systemet modulært, så det er let at udskifte eller opgradere dele uden at skulle omskrive det hele.
+Alt dette gør SagsHub både teknisk og organisatorisk bæredygtigt, som jeg også fremhæver i rapporten. 
+
+Open Source og standardteknologier:
+Jeg har valgt teknologier som Node.js, React, PostgreSQL og Drizzle ORM, som alle er open source og meget udbredte. Det betyder, at systemet ikke er låst til én leverandør, og det er nemt at finde udviklere, der kan arbejde videre på det.
+
+Modulær arkitektur:
+Koden er delt op i små, adskilte moduler (fx routes, controllers, services). Det gør det nemt at udskifte eller opgradere dele af systemet uden at skulle omskrive det hele. Det forlænger systemets levetid og gør det billigere at vedligeholde.  
+
+Letvægts deployment:
+Systemet kan køre på en Raspberry Pi eller anden lavenergi-hardware. Det betyder lavt strømforbrug og mindre hardwarekrav, hvilket er mere miljøvenligt end store servere eller cloud-løsninger.
+
+Automatiserede tests og migrationer:
+Jeg har sat automatiske database-migrationer og testdata op, så det er nemt at opdatere og vedligeholde systemet uden risiko for fejl. Det gør det mere robust og mindre sårbart over tid.
+
+Organisatorisk bæredygtighed
+Dokumentation og standarder:
+Jeg har dokumenteret både kode og processer, så andre kan overtage eller videreudvikle systemet uden at skulle starte forfra. Det gør det nemmere at onboarde nye medarbejdere.
+
+Brugervenlighed og tilpasning:
+Systemet er designet til at kunne tilpasses nye behov, fx hvis TJData får nye arbejdsgange eller flere brugere. Det gør, at systemet kan vokse med virksomheden og ikke skal udskiftes, hver gang der sker ændringer.
+
+Ingen afhængighed af dyre licenser:
+Alt er bygget på gratis teknologier, så virksomheden undgår løbende licensomkostninger og kan bruge ressourcerne på udvikling i stedet.
+
+Kort sagt: Jeg har valgt teknologier og en arkitektur, der gør SagsHub nemt at vedligeholde, billigt at drive og fleksibelt at udvide – både for miljøet og for virksomheden. Det er bæredygtighed i praksis! 
+
+Mundtlig modelbesvarelse:
+"Bæredygtighed handler ikke kun om strømforbrug, men også om vedligeholdelse, skalerbarhed og levetid. I Sagshub har jeg truffet teknologiske valg, der gør systemet lettere at genbruge, vedligeholde og tilpasse – hvilket reducerer spild og forlænger levetiden."
+
+
+🌱 Teknisk bæredygtighed:
+1. TypeScript i hele stacken
+ → Minimerer fejl, gør koden mere stabil og nemmere at overtage af andre udviklere
+ → Giver længere levetid på software uden at skulle omskrives
+2. Drizzle ORM + PostgreSQL
+ → Sikrer struktureret og versioneret databaseudvikling
+ → Gør det nemt at migrere eller udvide uden at miste data
+3. Modulær filstruktur og delt type-arkitektur (shared/)
+ → Reducerer dobbeltkode og fejl
+ → Gør genbrug og udvidelse nemmere
+4. Lazy loading og debounced søgning i frontend
+ → Mindsker belastning på server og netværk
+ → Forlænger levetiden af både hardware og brugeroplevelse
+
+
+🖥️ Ressourceoptimering:
+• Pagination + server-side filtering
+ → Systemet henter kun det nødvendige
+ → Velegnet til store datasæt uden unødvendigt ressourceforbrug
+• Connection pooling og SELECT-optimering i backend
+ → Reducerer belastning på PostgreSQL
+ → Bedre performance med lavere serverkrav
+
+
+🔌 Organisatorisk bæredygtighed:
+• Systemet kan køre på en Raspberry Pi – lavt strømforbrug, intet cloud-abonnement
+• Lokalt netværk = ingen afhængighed af tredjeparts-servere
+• Open-source stack = ingen licensomkostninger → lettere drift for små virksomheder
+

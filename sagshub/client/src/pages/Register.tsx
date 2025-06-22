@@ -151,8 +151,8 @@ export default function Register() {
                   </FormItem>
                 )}
               />
-              <Button type="submit" className="w-full" disabled={loginMutation.isLoading}>
-                {loginMutation.isLoading ? "Opretter..." : "Opret konto"}
+              <Button type="submit" className="w-full" disabled={loginMutation.isPending}>
+                {loginMutation.isPending ? "Opretter..." : "Opret konto"}
               </Button>
               <div className="text-center mt-4">
                 <Link href="/auth" className="text-sm text-primary hover:underline">

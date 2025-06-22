@@ -11,20 +11,19 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { insertCustomerSchema } from "@shared/schema";
-import type { Customer } from "@shared/schema";
+import { insertCustomerSchema, type InsertCustomer, type Customer } from "@shared/schema";
+import { z } from "zod";
 
 interface CustomerFormProps {
-  onSubmit: (data: Partial<Customer>) => void;
+  onSubmit: (data: InsertCustomer) => void;
   isLoading?: boolean;
-  defaultValues?: Partial<Customer>;
-  limitedEdit?: boolean;
+  defaultValues?: Customer;
 }
 
-export function CustomerForm({ onSubmit, isLoading, defaultValues, limitedEdit }: CustomerFormProps) {
-  const form = useForm({
+export function CustomerForm({ onSubmit, isLoading, defaultValues }: CustomerFormProps) {
+  const form = useForm<z.infer<typeof insertCustomerSchema>>({
     resolver: zodResolver(insertCustomerSchema),
-    defaultValues: {
+    defaultValues: defaultValues || {
       name: "",
       phone: "",
       email: "",
@@ -32,7 +31,6 @@ export function CustomerForm({ onSubmit, isLoading, defaultValues, limitedEdit }
       city: "",
       postalCode: "",
       notes: "",
-      ...defaultValues,
     },
   });
 
@@ -44,9 +42,11 @@ export function CustomerForm({ onSubmit, isLoading, defaultValues, limitedEdit }
           name="name"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Navn</FormLabel>
+              <FormLabel>
+                Navn <span className="text-red-500">*</span>
+              </FormLabel>
               <FormControl>
-                <Input {...field} disabled={limitedEdit} />
+                <Input placeholder="Kundens navn" {...field} value={field.value || ""} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -58,9 +58,11 @@ export function CustomerForm({ onSubmit, isLoading, defaultValues, limitedEdit }
           name="phone"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Telefon</FormLabel>
+              <FormLabel>
+                Telefon <span className="text-red-500">*</span>
+              </FormLabel>
               <FormControl>
-                <Input {...field} disabled={limitedEdit} />
+                <Input placeholder="12345678" {...field} value={field.value || ""} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -74,7 +76,7 @@ export function CustomerForm({ onSubmit, isLoading, defaultValues, limitedEdit }
             <FormItem>
               <FormLabel>Email</FormLabel>
               <FormControl>
-                <Input {...field} type="email" />
+                <Input type="email" placeholder="kunde@example.com" {...field} value={field.value || ""} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -88,40 +90,42 @@ export function CustomerForm({ onSubmit, isLoading, defaultValues, limitedEdit }
             <FormItem>
               <FormLabel>Adresse</FormLabel>
               <FormControl>
-                <Input {...field} />
+                <Input placeholder="Gade og husnummer" {...field} value={field.value || ""} />
               </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
 
-        <FormField
-          control={form.control}
-          name="city"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>By</FormLabel>
-              <FormControl>
-                <Input {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        <div className="grid grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="city"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>By</FormLabel>
+                <FormControl>
+                  <Input placeholder="By" {...field} value={field.value || ""} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
-        <FormField
-          control={form.control}
-          name="postalCode"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Postnummer</FormLabel>
-              <FormControl>
-                <Input {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+          <FormField
+            control={form.control}
+            name="postalCode"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Postnummer</FormLabel>
+                <FormControl>
+                  <Input placeholder="1234" {...field} value={field.value || ""} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
 
         <FormField
           control={form.control}
@@ -130,15 +134,20 @@ export function CustomerForm({ onSubmit, isLoading, defaultValues, limitedEdit }
             <FormItem>
               <FormLabel>Noter</FormLabel>
               <FormControl>
-                <Textarea {...field} />
+                <Textarea 
+                  placeholder="Tilføj eventuelle noter om kunden..."
+                  className="min-h-[100px]"
+                  {...field}
+                  value={field.value || ""}
+                />
               </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
 
-        <Button type="submit" disabled={isLoading}>
-          {isLoading ? "Gemmer..." : "Gem"}
+        <Button type="submit" className="w-full" disabled={isLoading}>
+          {isLoading ? "Gemmer..." : defaultValues ? "Gem ændringer" : "Opret kunde"}
         </Button>
       </form>
     </Form>

@@ -1,98 +1,18 @@
 import * as React from "react"
 import { ChevronLeft, ChevronRight, MoreHorizontal } from "lucide-react"
-import { Button } from "@/components/ui/button"
 
 import { cn } from "@/lib/utils"
 import { ButtonProps, buttonVariants } from "@/components/ui/button"
 
-interface PaginationProps {
-  currentPage: number;
-  totalPages: number;
-  onPageChange: (page: number) => void;
-}
-
-export function Pagination({ currentPage, totalPages, onPageChange }: PaginationProps) {
-  // Generere pagination knapper
-  const generatePaginationItems = () => {
-    let pages = [];
-    
-    // Altid vis første side
-    pages.push(1);
-    
-    // Beregn rækkevidde af sider at vise
-    let startPage = Math.max(2, currentPage - 1);
-    let endPage = Math.min(totalPages - 1, currentPage + 1);
-    
-    // Tilføj ellipsis efter første side hvis nødvendigt
-    if (startPage > 2) {
-      pages.push("...");
-    }
-    
-    // Tilføj mellemliggende sider
-    for (let i = startPage; i <= endPage; i++) {
-      pages.push(i);
-    }
-    
-    // Tilføj ellipsis før sidste side hvis nødvendigt
-    if (endPage < totalPages - 1) {
-      pages.push("...");
-    }
-    
-    // Altid vis sidste side hvis der er mere end 1 side
-    if (totalPages > 1) {
-      pages.push(totalPages);
-    }
-    
-    return pages;
-  };
-  
-  const paginationItems = generatePaginationItems();
-
-  return (
-    <div className="flex items-center justify-center space-x-2">
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={() => onPageChange(currentPage - 1)}
-        disabled={currentPage === 1}
-      >
-        <ChevronLeft className="h-4 w-4" />
-        <span className="sr-only">Forrige side</span>
-      </Button>
-      
-      {paginationItems.map((page, i) => {
-        if (page === "...") {
-          return (
-            <span key={`ellipsis-${i}`} className="px-3 py-2 text-sm text-muted-foreground">
-              ...
-            </span>
-          );
-        }
-        
-        return (
-          <Button
-            key={`page-${page}`}
-            variant={currentPage === page ? "default" : "outline"}
-            size="sm"
-            onClick={() => onPageChange(page as number)}
-          >
-            {page}
-          </Button>
-        );
-      })}
-      
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={() => onPageChange(currentPage + 1)}
-        disabled={currentPage === totalPages}
-      >
-        <ChevronRight className="h-4 w-4" />
-        <span className="sr-only">Næste side</span>
-      </Button>
-    </div>
-  );
-}
+const Pagination = ({ className, ...props }: React.ComponentProps<"nav">) => (
+  <nav
+    role="navigation"
+    aria-label="pagination"
+    className={cn("mx-auto flex w-full justify-center", className)}
+    {...props}
+  />
+)
+Pagination.displayName = "Pagination"
 
 const PaginationContent = React.forwardRef<
   HTMLUListElement,
@@ -187,6 +107,7 @@ const PaginationEllipsis = ({
 PaginationEllipsis.displayName = "PaginationEllipsis"
 
 export {
+  Pagination,
   PaginationContent,
   PaginationEllipsis,
   PaginationItem,

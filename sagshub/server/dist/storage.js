@@ -1,21 +1,38 @@
 import { db } from "./db.js";
-import { eq, desc, asc, and, or, like, sql } from "drizzle-orm";
-import { users, customers, cases, rma, orders, internalCases, statusHistory, rmaStatusHistory } from "../shared/schema.js";
+import { eq, desc, asc, and, or, like, sql, ne } from "drizzle-orm";
+import { users, customers, cases, rma, orders, internalCases, statusHistory, rmaStatusHistory } from "../shared/schema";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
+import { isCaseInAlarm } from "../shared/alarm";
+// Helper-funktion til at beregne antal hverdage mellem to datoer
+function getBusinessDaysDifference(startDate, endDate) {
+    let count = 0;
+    let current = new Date(startDate);
+    while (current <= endDate) {
+        const day = current.getDay();
+        if (day !== 0 && day !== 6)
+            count++; // 0 = søndag, 6 = lørdag
+        current.setDate(current.getDate() + 1);
+    }
+    return count;
+}
 const PostgresSessionStore = connectPg(session);
 export class DatabaseStorage {
     constructor() {
+        const dbConfig = {
+            user: process.env.DB_USER || 'postgres',
+            host: process.env.DB_HOST || 'localhost',
+            database: process.env.DB_NAME || 'sagshub',
+            password: process.env.DB_PASSWORD || 'wa2657321',
+            port: parseInt(process.env.DB_PORT || '5432'),
+        };
+        this.dbConfig = dbConfig;
         this.sessionStore = new PostgresSessionStore({
-            conObject: {
-                user: 'postgres',
-                host: 'localhost',
-                database: 'sagshub',
-                password: 'wa2657321',
-                port: 5432,
-            },
+            conObject: dbConfig,
             createTableIfMissing: true,
         });
+        // Log databaseforbindelse ved opstart
+        console.log('Forbinder til database:', dbConfig);
     }
     async getUser(id) {
         const [user] = await db.select().from(users).where(eq(users.id, id));
@@ -68,12 +85,45 @@ export class DatabaseStorage {
         if (!searchTerm?.trim()) {
             return [];
         }
-        const searchTermTrimmed = searchTerm.trim();
-        const searchPattern = `%${searchTermTrimmed}%`;
-        return db.select()
-            .from(customers)
-            .where(or(like(customers.name, searchPattern), like(customers.phone, searchPattern), like(customers.email, searchPattern), eq(customers.id, parseInt(searchTermTrimmed))))
-            .limit(10);
+        try {
+            const searchTermTrimmed = searchTerm.trim();
+            console.log('Søger efter kunder med term:', searchTermTrimmed);
+            // Use raw SQL to ensure proper search functionality
+            let query = `
+        SELECT id, name, phone, email, address, city, postal_code, notes, created_at, updated_at
+        FROM customers 
+        WHERE (
+          name ILIKE '%${searchTermTrimmed}%' OR
+          phone ILIKE '%${searchTermTrimmed}%' OR
+          email ILIKE '%${searchTermTrimmed}%'
+        )
+      `;
+            // Add ID search if it's a number
+            if (/^\d+$/.test(searchTermTrimmed)) {
+                query += ` OR id = ${Number(searchTermTrimmed)}`;
+            }
+            query += ` ORDER BY name LIMIT 10`;
+            console.log('Executing customer search query:', query);
+            const result = await db.execute(sql([query]));
+            const customers = result.rows.map((row) => ({
+                id: row.id,
+                name: row.name,
+                phone: row.phone,
+                email: row.email,
+                address: row.address,
+                city: row.city,
+                postalCode: row.postal_code,
+                notes: row.notes,
+                createdAt: new Date(row.created_at),
+                updatedAt: new Date(row.updated_at)
+            }));
+            console.log('Fandt', customers.length, 'kunder');
+            return customers;
+        }
+        catch (error) {
+            console.error('Fejl ved kundesøgning:', error);
+            return [];
+        }
     }
     async getCases(customerId) {
         try {
@@ -90,6 +140,9 @@ export class DatabaseStorage {
                 deviceType: cases.deviceType,
                 accessories: cases.accessories,
                 importantNotes: cases.importantNotes,
+                loginInfo: cases.loginInfo,
+                purchasedHere: cases.purchasedHere,
+                purchaseDate: cases.purchaseDate,
                 status: cases.status,
                 createdAt: cases.createdAt,
                 updatedAt: cases.updatedAt,
@@ -129,8 +182,7 @@ export class DatabaseStorage {
     }
     async getCase(idOrNumber) {
         try {
-            console.log(`Getting case with idOrNumber: ${idOrNumber}`);
-            const query = db
+            let query = db
                 .select({
                 id: cases.id,
                 caseNumber: cases.caseNumber,
@@ -142,50 +194,71 @@ export class DatabaseStorage {
                 deviceType: cases.deviceType,
                 accessories: cases.accessories,
                 importantNotes: cases.importantNotes,
+                loginInfo: cases.loginInfo,
+                purchasedHere: cases.purchasedHere,
+                purchaseDate: cases.purchaseDate,
                 status: cases.status,
                 createdAt: cases.createdAt,
                 updatedAt: cases.updatedAt,
                 createdBy: cases.createdBy,
-                customer: {
-                    id: customers.id,
-                    name: customers.name,
-                    phone: customers.phone,
-                    email: customers.email,
-                    address: customers.address,
-                    city: customers.city,
-                    postalCode: customers.postalCode,
-                    notes: customers.notes
-                }
+                customerName: customers.name,
+                customerPhone: customers.phone,
+                customerEmail: customers.email,
+                customerAddress: customers.address,
             })
                 .from(cases)
                 .leftJoin(customers, eq(cases.customerId, customers.id));
             if (typeof idOrNumber === 'string') {
-                query.where(eq(cases.caseNumber, idOrNumber.toUpperCase()));
+                query = query.where(eq(cases.caseNumber, idOrNumber.toUpperCase()));
             }
             else {
-                query.where(eq(cases.id, idOrNumber));
+                query = query.where(eq(cases.id, idOrNumber));
             }
-            const [case_] = await query;
-            if (!case_) {
-                console.log('No case found');
+            const [row] = await query;
+            if (!row)
                 return undefined;
+            // Hent medarbejdernavn fra initial status history (sag oprettet)
+            let createdByName = null;
+            try {
+                const initialStatusHistory = await db
+                    .select({
+                    createdByName: statusHistory.createdByName,
+                    userName: users.name,
+                })
+                    .from(statusHistory)
+                    .leftJoin(users, eq(statusHistory.createdBy, users.id))
+                    .where(and(eq(statusHistory.caseId, row.id), eq(statusHistory.comment, 'Sag oprettet')))
+                    .orderBy(asc(statusHistory.createdAt))
+                    .limit(1);
+                if (initialStatusHistory.length > 0) {
+                    // Prioriter createdByName fra status history over userName
+                    const history = initialStatusHistory[0];
+                    createdByName = history.createdByName || history.userName;
+                }
+                // Fallback til brugerens navn hvis intet findes
+                if (!createdByName) {
+                    const user = await this.getUser(row.createdBy);
+                    createdByName = user?.name || 'System';
+                }
             }
-            // Konverter snake_case til camelCase i customer objektet
-            if (case_.customer) {
-                const { customer } = case_;
-                case_.customer = {
-                    id: customer.id,
-                    name: customer.name,
-                    phone: customer.phone,
-                    email: customer.email,
-                    address: customer.address,
-                    city: customer.city,
-                    postalCode: customer.postalCode,
-                    notes: customer.notes
-                };
+            catch (error) {
+                console.error('Error fetching initial status history:', error);
+                // Fallback til brugerens navn
+                const user = await this.getUser(row.createdBy);
+                createdByName = user?.name || 'System';
             }
-            console.log('Found case:', case_);
-            return case_;
+            return {
+                ...row,
+                purchasedHere: row.purchasedHere ?? false,
+                purchaseDate: row.purchaseDate ?? null,
+                createdByName,
+                customer: {
+                    name: row.customerName || "-",
+                    phone: row.customerPhone || "-",
+                    email: row.customerEmail || "-",
+                    address: row.customerAddress || "-"
+                }
+            };
         }
         catch (error) {
             console.error("Error in getCase:", error);
@@ -193,15 +266,83 @@ export class DatabaseStorage {
         }
     }
     async createCase(caseData) {
-        const [case_] = await db
-            .insert(cases)
-            .values({
-            ...caseData,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-        })
-            .returning();
-        return case_;
+        try {
+            console.log('Creating case with data:', JSON.stringify(caseData, null, 2));
+            // Use raw SQL instead of Drizzle ORM to avoid schema issues
+            const result = await db.execute(sql `
+        INSERT INTO cases (
+          case_number, customer_id, title, description, treatment, priority, 
+          device_type, accessories, important_notes, login_info, purchased_here, 
+          purchase_date, status, created_at, updated_at, created_by
+        ) VALUES (
+          ${caseData.caseNumber}, ${caseData.customerId}, ${caseData.title}, 
+          ${caseData.description}, ${caseData.treatment}, ${caseData.priority},
+          ${caseData.deviceType}, ${caseData.accessories || ''}, 
+          ${caseData.importantNotes || ''}, ${caseData.loginInfo || ''}, 
+          ${caseData.purchasedHere || false}, ${caseData.purchaseDate || null},
+          ${caseData.status}, NOW(), NOW(), ${caseData.createdBy}
+        ) RETURNING *
+      `);
+            const case_ = result.rows[0];
+            console.log('Case created successfully:', case_);
+            // Opret initial status history med createdByName
+            let createdByName;
+            if (caseData.createdByName && caseData.createdByName.trim()) {
+                createdByName = caseData.createdByName.trim();
+            }
+            else {
+                const user = await this.getUser(caseData.createdBy);
+                createdByName = user?.name || 'System';
+            }
+            await db.insert(statusHistory).values({
+                caseId: case_.id,
+                status: caseData.status,
+                comment: 'Sag oprettet',
+                createdBy: caseData.createdBy,
+                createdByName,
+                createdAt: new Date(),
+            });
+            console.log('Initial StatusHistory GEMT:', { caseId: case_.id, status: caseData.status, comment: 'Sag oprettet', createdBy: caseData.createdBy, createdByName });
+            // Opret eller opdater customer user for denne kunde
+            try {
+                const customer = await this.getCustomer(caseData.customerId);
+                if (customer) {
+                    const existingCustomerUser = await this.getCustomerUser(customer.id);
+                    if (!existingCustomerUser) {
+                        await this.createCustomerUser(customer, case_.case_number);
+                        console.log(`Automatisk oprettet customer login for ${customer.name} med sag ${case_.case_number}`);
+                    }
+                }
+            }
+            catch (error) {
+                console.warn('Warning: Could not create customer user:', error);
+                // Don't fail case creation if customer user creation fails
+            }
+            // Convert snake_case to camelCase
+            return {
+                id: case_.id,
+                caseNumber: case_.case_number,
+                customerId: case_.customer_id,
+                title: case_.title,
+                description: case_.description,
+                treatment: case_.treatment,
+                priority: case_.priority,
+                deviceType: case_.device_type,
+                accessories: case_.accessories,
+                importantNotes: case_.important_notes,
+                loginInfo: case_.login_info,
+                purchasedHere: case_.purchased_here,
+                purchaseDate: case_.purchase_date,
+                status: case_.status,
+                createdAt: new Date(case_.created_at),
+                updatedAt: new Date(case_.updated_at),
+                createdBy: case_.created_by
+            };
+        }
+        catch (error) {
+            console.error('Error in createCase:', error);
+            throw error;
+        }
     }
     async updateCaseStatus(id, status) {
         const [case_] = await db
@@ -223,15 +364,7 @@ export class DatabaseStorage {
     }
     async getCaseStatusHistory(caseId) {
         try {
-            // Tjek først om sagen eksisterer og hent alle nødvendige felter
-            const [caseExists] = await db
-                .select()
-                .from(cases)
-                .where(eq(cases.id, caseId));
-            if (!caseExists) {
-                console.log(`Sag med id ${caseId} findes ikke`);
-                return [];
-            }
+            // JOIN users for fallback-navn
             const history = await db
                 .select({
                 id: statusHistory.id,
@@ -240,38 +373,63 @@ export class DatabaseStorage {
                 comment: statusHistory.comment,
                 createdAt: statusHistory.createdAt,
                 createdBy: statusHistory.createdBy,
-                createdByName: users.name,
+                createdByName: statusHistory.createdByName,
+                userName: users.name,
             })
                 .from(statusHistory)
                 .leftJoin(users, eq(statusHistory.createdBy, users.id))
                 .where(eq(statusHistory.caseId, caseId))
                 .orderBy(desc(statusHistory.createdAt));
-            return history.map(record => ({
-                ...record,
-                createdByName: record.createdByName || "System",
-            }));
+            return history.map(record => {
+                // Brug createdByName hvis sat, ellers brug userName
+                const out = { ...record, createdByName: record.createdByName || record.userName || "System" };
+                console.log('StatusHistory RETURNERES:', out);
+                return out;
+            });
         }
         catch (error) {
             console.error("Fejl i getCaseStatusHistory:", error);
             return [];
         }
     }
-    async updateCaseStatusWithHistory(caseId, status, comment, userId) {
+    async updateCaseStatusWithHistory(caseId, status, comment, userId, updatedByName) {
+        // Opdater sag status
+        const now = new Date();
+        const updateData = {
+            status,
+            updatedAt: now,
+        };
+        // Slet loginInfo når sag afsluttes
+        if (status === 'completed') {
+            updateData.loginInfo = null;
+        }
+        console.log('[updateCaseStatusWithHistory] Opdaterer sag', caseId, 'til status', status, 'updatedAt:', now.toISOString());
+        console.log('[updateCaseStatusWithHistory] updateData:', updateData);
         const [updatedCase] = await db
             .update(cases)
-            .set({
-            status,
-            updatedAt: new Date(),
-        })
+            .set(updateData)
             .where(eq(cases.id, caseId))
             .returning();
+        console.log('Case updated with status:', status, 'updatedAt:', now);
+        console.log('Updated case result:', { id: updatedCase.id, status: updatedCase.status, updatedAt: updatedCase.updatedAt });
+        // Brug det angivne medarbejdernavn hvis det findes, ellers hent brugerens navn
+        let createdByName;
+        if (updatedByName && updatedByName.trim()) {
+            createdByName = updatedByName.trim();
+        }
+        else {
+            const user = await this.getUser(userId);
+            createdByName = user?.name || 'System';
+        }
         await db.insert(statusHistory).values({
             caseId,
             status,
             comment,
             createdBy: userId,
-            createdAt: new Date(),
+            createdByName,
+            createdAt: now,
         });
+        console.log('StatusHistory GEMT:', { caseId, status, comment, createdBy: userId, createdByName });
         return updatedCase;
     }
     async searchCases(searchTerm) {
@@ -280,13 +438,24 @@ export class DatabaseStorage {
         }
         const searchTermTrimmed = searchTerm.trim();
         const searchPattern = `%${searchTermTrimmed}%`;
+        const numericId = parseInt(searchTermTrimmed);
+        const conditions = [
+            like(cases.caseNumber, searchPattern),
+            like(cases.title, searchPattern),
+            like(cases.description, searchPattern),
+            like(customers.name, searchPattern)
+        ];
+        // Kun tilføj ID søgning hvis det er et gyldigt nummer
+        if (!isNaN(numericId)) {
+            conditions.push(eq(cases.id, numericId));
+        }
         return db.select({
             ...cases,
             customerName: customers.name
         })
             .from(cases)
             .leftJoin(customers, eq(cases.customerId, customers.id))
-            .where(or(like(cases.caseNumber, searchPattern), like(cases.title, searchPattern), like(cases.description, searchPattern), like(customers.name, searchPattern), eq(cases.id, parseInt(searchTermTrimmed))))
+            .where(or(...conditions))
             .limit(10);
     }
     async getRMAs() {
@@ -379,6 +548,7 @@ export class DatabaseStorage {
     }
     async getRMAStatusHistory(rmaId) {
         try {
+            // JOIN users for fallback-navn
             const history = await db
                 .select({
                 id: rmaStatusHistory.id,
@@ -387,23 +557,26 @@ export class DatabaseStorage {
                 comment: rmaStatusHistory.comment,
                 createdAt: rmaStatusHistory.createdAt,
                 createdBy: rmaStatusHistory.createdBy,
-                createdByName: users.name,
+                createdByName: rmaStatusHistory.createdByName,
+                userName: users.name,
             })
                 .from(rmaStatusHistory)
                 .leftJoin(users, eq(rmaStatusHistory.createdBy, users.id))
                 .where(eq(rmaStatusHistory.rmaId, rmaId))
                 .orderBy(desc(rmaStatusHistory.createdAt));
-            return history.map(record => ({
-                ...record,
-                createdByName: record.createdByName || "System",
-            }));
+            return history.map(record => {
+                // Brug createdByName hvis sat, ellers brug userName
+                const out = { ...record, createdByName: record.createdByName || record.userName || "System" };
+                console.log('RMA StatusHistory RETURNERES:', out);
+                return out;
+            });
         }
         catch (error) {
             console.error("Error in getRMAStatusHistory:", error);
             return [];
         }
     }
-    async updateRMAStatusWithHistory(rmaId, status, comment, userId) {
+    async updateRMAStatusWithHistory(rmaId, status, comment, userId, updatedByName) {
         const [updatedRMA] = await db
             .update(rma)
             .set({
@@ -412,13 +585,24 @@ export class DatabaseStorage {
         })
             .where(eq(rma.id, rmaId))
             .returning();
+        // Brug det angivne medarbejdernavn hvis det findes, ellers hent brugerens navn
+        let createdByName;
+        if (updatedByName && updatedByName.trim()) {
+            createdByName = updatedByName.trim();
+        }
+        else {
+            const user = await this.getUser(userId);
+            createdByName = user?.name || 'System';
+        }
         await db.insert(rmaStatusHistory).values({
             rmaId,
             status,
             comment,
             createdBy: userId,
+            createdByName,
             createdAt: new Date(),
         });
+        console.log('RMA StatusHistory GEMT:', { rmaId, status, comment, createdBy: userId, createdByName });
         return updatedRMA;
     }
     async updateRMA(id, rmaData) {
@@ -448,6 +632,7 @@ export class DatabaseStorage {
             const cleanedData = { ...caseData };
             delete cleanedData.customer_search;
             delete cleanedData.customer_phone;
+            delete cleanedData.createdByName;
             // Udfør opdateringen med Drizzle ORM
             const [updatedCase] = await db
                 .update(cases)
@@ -471,73 +656,148 @@ export class DatabaseStorage {
         }
     }
     async getPaginatedCases(options) {
-        const { page, pageSize, searchTerm, treatment, priority, status, sort, customerId, isWorker } = options;
+        const { page, pageSize, searchTerm, treatment, priority, status, sort, customerId, isWorker, includeCompleted } = options;
         const offset = (page - 1) * pageSize;
         try {
-            // Opret base query
-            let query = db
-                .select({
-                id: cases.id,
-                caseNumber: cases.caseNumber,
-                customerId: cases.customerId,
-                customerName: customers.name,
-                title: cases.title,
-                description: cases.description,
-                treatment: cases.treatment,
-                priority: cases.priority,
-                deviceType: cases.deviceType,
-                accessories: cases.accessories,
-                importantNotes: cases.importantNotes,
-                status: cases.status,
-                createdAt: cases.createdAt,
-                updatedAt: cases.updatedAt,
-                createdBy: users.name,
-            })
-                .from(cases)
-                .leftJoin(customers, eq(cases.customerId, customers.id))
-                .leftJoin(users, eq(cases.createdBy, users.id));
+            console.log('getPaginatedCases called with options:', options);
+            const startTime = Date.now();
+            // Build WHERE conditions
+            let whereConditions = [];
             if (searchTerm) {
-                query = query.where(or(like(cases.title, `%${searchTerm}%`), like(cases.caseNumber, `%${searchTerm}%`), like(cases.description, `%${searchTerm}%`), like(customers.name, `%${searchTerm}%`)));
+                whereConditions.push(`(
+          c.title ILIKE '%${searchTerm}%' OR
+          c.case_number ILIKE '%${searchTerm}%' OR
+          c.description ILIKE '%${searchTerm}%' OR
+          cust.name ILIKE '%${searchTerm}%'
+        )`);
             }
             if (treatment) {
-                query = query.where(eq(cases.treatment, treatment));
+                whereConditions.push(`c.treatment = '${treatment}'`);
             }
             if (priority) {
-                query = query.where(eq(cases.priority, priority));
+                whereConditions.push(`c.priority = '${priority}'`);
             }
             if (status) {
-                query = query.where(eq(cases.status, status));
+                whereConditions.push(`c.status = '${status}'`);
+            }
+            else if (!includeCompleted) {
+                // Skjul afsluttede sager som standard, medmindre der specifikt søges efter dem
+                // eller includeCompleted er sat til true (for statistikker)
+                whereConditions.push(`c.status != 'completed'`);
             }
             if (customerId) {
-                query = query.where(eq(cases.customerId, customerId));
+                whereConditions.push(`c.customer_id = ${customerId}`);
             }
+            const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+            // Get total count
+            const countQuery = `
+        SELECT COUNT(*)::int as count
+        FROM cases c
+        LEFT JOIN customers cust ON c.customer_id = cust.id
+        LEFT JOIN users u ON c.created_by = u.id
+        ${whereClause}
+      `;
+            const countResult = await db.execute(sql([countQuery]));
+            const count = countResult.rows[0]?.count || 0;
+            // Get status counts (cached for better performance)
+            const statusCountsQuery = `
+        SELECT status, COUNT(*)::int as count
+        FROM cases
+        WHERE status != 'completed'
+        GROUP BY status
+      `;
+            const statusCountsResult = await db.execute(sql([statusCountsQuery]));
+            const statusCountsMap = statusCountsResult.rows.reduce((acc, row) => {
+                acc[row.status] = row.count;
+                return acc;
+            }, {});
+            // Get alarm count (simplified for better performance)
+            const alarmCountQuery = `
+        SELECT COUNT(*)::int as count
+        FROM cases c
+        WHERE c.status != 'completed'
+        AND (
+          (c.status = 'created' AND c.priority = 'four_days' AND EXTRACT(EPOCH FROM (NOW() - c.created_at)) / 86400 > 4)
+          OR (c.status = 'in_progress' AND EXTRACT(EPOCH FROM (NOW() - c.created_at)) / 86400 > 1)
+          OR (c.status = 'ready_for_pickup' AND EXTRACT(EPOCH FROM (NOW() - c.created_at)) / 86400 > 14)
+          OR (c.status = 'waiting_customer' AND EXTRACT(EPOCH FROM (NOW() - c.created_at)) / 86400 > 14)
+        )
+      `;
+            const alarmResult = await db.execute(sql([alarmCountQuery]));
+            const alarmCount = alarmResult.rows[0]?.count || 0;
+            // Build sort clause
+            let sortClause = 'ORDER BY c.updated_at DESC';
             if (sort) {
-                const [field, direction] = sort.split(':');
-                if (field === 'createdAt') {
-                    query = query.orderBy(direction === 'desc' ? desc(cases.createdAt) : asc(cases.createdAt));
+                if (sort === 'newest') {
+                    sortClause = 'ORDER BY c.created_at DESC';
                 }
-                else if (field === 'updatedAt') {
-                    query = query.orderBy(direction === 'desc' ? desc(cases.updatedAt) : asc(cases.updatedAt));
+                else if (sort === 'oldest') {
+                    sortClause = 'ORDER BY c.created_at ASC';
+                }
+                else if (sort === 'default') {
+                    sortClause = 'ORDER BY c.updated_at DESC';
+                }
+                else {
+                    // Fallback for old format (field:direction)
+                    const [field, direction] = sort.split(':');
+                    if (field === 'createdAt') {
+                        sortClause = `ORDER BY c.created_at ${direction === 'desc' ? 'DESC' : 'ASC'}`;
+                    }
+                    else if (field === 'updatedAt') {
+                        sortClause = `ORDER BY c.updated_at ${direction === 'desc' ? 'DESC' : 'ASC'}`;
+                    }
                 }
             }
-            else {
-                query = query.orderBy(desc(cases.updatedAt));
-            }
-            // Hent total antal sager før paginering
-            const [{ count }] = await db
-                .select({ count: sql `count(*)` })
-                .from(cases)
-                .where(query._where || sql `true`);
-            // Tilføj paginering til hovedforespørgslen
-            const items = await query
-                .limit(pageSize)
-                .offset(offset);
+            // Get paginated cases
+            const casesQuery = `
+        SELECT 
+          c.id,
+          c.case_number as "caseNumber",
+          c.customer_id as "customerId",
+          c.title,
+          c.description,
+          c.treatment,
+          c.priority,
+          c.device_type as "deviceType",
+          c.accessories,
+          c.important_notes as "importantNotes",
+          c.login_info as "loginInfo",
+          c.purchased_here as "purchasedHere",
+          c.purchase_date as "purchaseDate",
+          c.status,
+          c.created_at as "createdAt",
+          c.updated_at as "updatedAt",
+          c.created_by as "createdBy",
+          cust.name as "customerName",
+          u.name as "userName"
+        FROM cases c
+        LEFT JOIN customers cust ON c.customer_id = cust.id
+        LEFT JOIN users u ON c.created_by = u.id
+        ${whereClause}
+        ${sortClause}
+        LIMIT ${pageSize} OFFSET ${offset}
+      `;
+            const casesResult = await db.execute(sql([casesQuery]));
+            const items = casesResult.rows.map((row) => ({
+                ...row,
+                createdAt: new Date(row.createdAt),
+                updatedAt: new Date(row.updatedAt),
+                purchaseDate: row.purchaseDate ? new Date(row.purchaseDate) : null,
+                customerName: row.customerName || `Kunde #${row.customerId}`,
+                createdBy: row.userName || 'System'
+            }));
+            const endTime = Date.now();
+            console.log(`getPaginatedCases completed in ${endTime - startTime}ms`);
             return {
                 items,
-                total: Number(count),
+                total: count,
                 page,
                 pageSize,
-                totalPages: Math.ceil(Number(count) / pageSize)
+                totalPages: Math.ceil(count / pageSize),
+                statusCounts: {
+                    ...statusCountsMap,
+                    alarm: alarmCount
+                }
             };
         }
         catch (error) {
@@ -549,37 +809,56 @@ export class DatabaseStorage {
         try {
             console.log('Søger efter kunder med term:', searchTerm);
             const offset = (page - 1) * pageSize;
-            // Build base query
-            const query = db
-                .select()
-                .from(customers);
+            // Build base query using raw SQL like searchCustomers
+            let countQuery = 'SELECT COUNT(*)::int AS count FROM customers';
+            let dataQuery = `
+        SELECT id, name, phone, email, address, city, postal_code, notes, created_at, updated_at
+        FROM customers
+      `;
             // Add search conditions if searchTerm is provided
             if (searchTerm?.trim()) {
-                const searchValue = searchTerm.trim().toLowerCase();
-                const numericSearch = parseInt(searchValue);
-                const isNumeric = !isNaN(numericSearch);
-                query.where(or(sql `LOWER(${customers.name}) LIKE ${`%${searchValue}%`}`, sql `LOWER(${customers.phone}) LIKE ${`%${searchValue}%`}`, sql `LOWER(${customers.email}) LIKE ${`%${searchValue}%`}`, sql `LOWER(${customers.address}) LIKE ${`%${searchValue}%`}`, sql `LOWER(${customers.city}) LIKE ${`%${searchValue}%`}`, isNumeric ? eq(customers.id, numericSearch) : sql `false`));
+                const searchPattern = searchTerm.trim();
+                console.log('Search pattern:', searchPattern);
+                let whereClause = `
+          WHERE (
+            name ILIKE '%${searchPattern}%' OR
+            phone ILIKE '%${searchPattern}%' OR
+            email ILIKE '%${searchPattern}%' OR
+            address ILIKE '%${searchPattern}%' OR
+            city ILIKE '%${searchPattern}%'
+        `;
+                // Add ID search if it's a number
+                if (/^\d+$/.test(searchPattern)) {
+                    whereClause += ` OR id = ${Number(searchPattern)}`;
+                }
+                whereClause += ')';
+                countQuery += whereClause;
+                dataQuery += whereClause;
+                console.log('Added search conditions for term:', searchPattern);
             }
-            // Get total count with same filters
-            const countQuery = db
-                .select({ count: sql `count(*)` })
-                .from(customers);
-            // Apply same search conditions to count query
-            if (searchTerm?.trim()) {
-                const searchValue = searchTerm.trim().toLowerCase();
-                const numericSearch = parseInt(searchValue);
-                const isNumeric = !isNaN(numericSearch);
-                countQuery.where(or(sql `LOWER(${customers.name}) LIKE ${`%${searchValue}%`}`, sql `LOWER(${customers.phone}) LIKE ${`%${searchValue}%`}`, sql `LOWER(${customers.email}) LIKE ${`%${searchValue}%`}`, sql `LOWER(${customers.address}) LIKE ${`%${searchValue}%`}`, sql `LOWER(${customers.city}) LIKE ${`%${searchValue}%`}`, isNumeric ? eq(customers.id, numericSearch) : sql `false`));
-            }
-            console.log('Executing search query...');
-            const [{ count }] = await countQuery;
-            const totalPages = Math.ceil(count / pageSize);
-            // Apply pagination and ordering
-            const items = await query
-                .orderBy(desc(customers.createdAt))
-                .limit(pageSize)
-                .offset(offset);
+            console.log('Executing count query:', countQuery);
+            const countResult = await db.execute(sql([countQuery]));
+            const count = countResult.rows?.[0]?.count || 0;
+            console.log('Count result:', count);
+            // Add ordering and pagination to data query
+            dataQuery += ` ORDER BY created_at DESC LIMIT ${pageSize} OFFSET ${offset}`;
+            console.log('Executing data query:', dataQuery);
+            const result = await db.execute(sql([dataQuery]));
+            const items = result.rows?.map((row) => ({
+                id: row.id,
+                name: row.name,
+                phone: row.phone,
+                email: row.email,
+                address: row.address,
+                city: row.city,
+                postalCode: row.postal_code,
+                notes: row.notes,
+                createdAt: new Date(row.created_at),
+                updatedAt: new Date(row.updated_at)
+            })) || [];
             console.log('Fandt', items.length, 'kunder');
+            console.log('First few results:', items.slice(0, 2).map(c => ({ id: c.id, name: c.name, phone: c.phone })));
+            const totalPages = Math.ceil(count / pageSize);
             return {
                 items,
                 total: count,
@@ -1023,13 +1302,39 @@ export class DatabaseStorage {
         }
         const searchTermTrimmed = searchTerm.trim();
         const searchPattern = `%${searchTermTrimmed}%`;
+        const numericId = parseInt(searchTermTrimmed);
+        const conditions = [
+            like(rma.rmaNumber, searchPattern),
+            like(rma.title, searchPattern),
+            like(rma.description, searchPattern),
+            like(customers.name, searchPattern)
+        ];
+        // Kun tilføj ID søgning hvis det er et gyldigt nummer
+        if (!isNaN(numericId)) {
+            conditions.push(eq(rma.id, numericId));
+        }
         return db.select({
             ...rma,
             customerName: customers.name
         })
             .from(rma)
             .leftJoin(customers, eq(rma.customerId, customers.id))
-            .where(or(like(rma.rmaNumber, searchPattern), like(rma.title, searchPattern), like(rma.description, searchPattern), like(customers.name, searchPattern), eq(rma.id, parseInt(searchTermTrimmed))))
+            .where(or(...conditions))
+            .limit(10);
+    }
+    async searchOrders(searchTerm) {
+        if (!searchTerm?.trim()) {
+            return [];
+        }
+        const searchTermTrimmed = searchTerm.trim();
+        const searchPattern = `%${searchTermTrimmed}%`;
+        return db.select({
+            ...orders,
+            customerName: customers.name
+        })
+            .from(orders)
+            .leftJoin(customers, eq(orders.customerId, customers.id))
+            .where(or(like(orders.orderNumber, searchPattern), like(customers.name, searchPattern)))
             .limit(10);
     }
     async updateUserPassword(userId, hashedPassword) {
@@ -1044,9 +1349,11 @@ export class DatabaseStorage {
         return user;
     }
     async updateUser(id, data) {
+        // Fjern undefined værdier
+        const cleanData = Object.fromEntries(Object.entries(data).filter(([_, value]) => value !== undefined));
         const result = await db
             .update(users)
-            .set(data)
+            .set(cleanData)
             .where(eq(users.id, id))
             .returning();
         return result[0];
@@ -1092,6 +1399,253 @@ export class DatabaseStorage {
         }
         catch (error) {
             console.error('Error in deleteUser:', error);
+            throw error;
+        }
+    }
+    async getTotalCases() {
+        const result = await db
+            .select({ count: sql `count(*)` })
+            .from(cases)
+            .where(sql `1 = 1`);
+        return result[0].count;
+    }
+    async getAlarmCases() {
+        try {
+            console.log('getAlarmCases called - using optimized SQL query');
+            // Optimeret SQL query der følger den korrekte alarm logik fra shared/alarm.ts
+            const alarmCasesQuery = sql `
+        WITH case_status_duration AS (
+          SELECT 
+            c.id,
+            c.case_number,
+            c.customer_id,
+            c.title,
+            c.description,
+            c.treatment,
+            c.priority,
+            c.device_type,
+            c.accessories,
+            c.important_notes,
+            c.status,
+            c.created_at,
+            c.updated_at,
+            c.created_by,
+            COALESCE(
+              (SELECT MAX(sh.created_at) 
+               FROM status_history sh 
+               WHERE sh.case_id = c.id AND sh.status = c.status),
+              c.created_at
+            ) as last_status_change,
+            CASE 
+              -- Four day priority alarm: created status + priority four_days + > 4 business days
+              WHEN c.status = 'created' AND c.priority = 'four_days' THEN
+                EXTRACT(EPOCH FROM (NOW() - c.created_at)) / 86400 > 4
+              -- In progress alarm: > 1 business day
+              WHEN c.status = 'in_progress' THEN
+                EXTRACT(EPOCH FROM (NOW() - COALESCE(
+                  (SELECT MAX(sh.created_at) FROM status_history sh WHERE sh.case_id = c.id AND sh.status = 'in_progress'),
+                  c.created_at
+                ))) / 86400 > 1
+              -- Ready for pickup alarm: > 14 business days
+              WHEN c.status = 'ready_for_pickup' THEN
+                EXTRACT(EPOCH FROM (NOW() - COALESCE(
+                  (SELECT MAX(sh.created_at) FROM status_history sh WHERE sh.case_id = c.id AND sh.status = 'ready_for_pickup'),
+                  c.created_at
+                ))) / 86400 > 14
+              -- Waiting customer alarm: > 14 business days
+              WHEN c.status = 'waiting_customer' THEN
+                EXTRACT(EPOCH FROM (NOW() - COALESCE(
+                  (SELECT MAX(sh.created_at) FROM status_history sh WHERE sh.case_id = c.id AND sh.status = 'waiting_customer'),
+                  c.created_at
+                ))) / 86400 > 14
+              -- All other statuses are not alarm
+              ELSE false
+            END as is_alarm
+          FROM cases c
+          WHERE c.status != 'completed'
+        )
+        SELECT * FROM case_status_duration WHERE is_alarm = true
+      `;
+            const result = await db.execute(alarmCasesQuery);
+            const alarmCases = result.rows.map((row) => ({
+                id: row.id,
+                caseNumber: row.case_number,
+                customerId: row.customer_id,
+                title: row.title,
+                description: row.description,
+                treatment: row.treatment,
+                priority: row.priority,
+                deviceType: row.device_type,
+                accessories: row.accessories,
+                importantNotes: row.important_notes,
+                status: row.status,
+                createdAt: new Date(row.created_at),
+                updatedAt: new Date(row.updated_at),
+                createdBy: row.created_by
+            }));
+            console.log(`Optimeret alarm query fandt ${alarmCases.length} sager i alarm`);
+            return alarmCases;
+        }
+        catch (error) {
+            console.error('Error getting alarm cases:', error);
+            // Fallback til den gamle metode hvis SQL fejler
+            console.log('Falling back to old method...');
+            return this.getAlarmCasesLegacy();
+        }
+    }
+    // Behold den gamle metode som fallback
+    async getAlarmCasesLegacy() {
+        try {
+            const allCases = await db.select().from(cases).where(ne(cases.status, 'completed')).limit(100);
+            console.log('Legacy method - antal sager hentet:', allCases.length);
+            const alarmCases = [];
+            for (const caseItem of allCases) {
+                const cleanCase = {
+                    id: caseItem.id,
+                    caseNumber: caseItem.caseNumber,
+                    customerId: caseItem.customerId,
+                    title: caseItem.title,
+                    description: caseItem.description,
+                    treatment: caseItem.treatment,
+                    priority: caseItem.priority,
+                    deviceType: caseItem.deviceType,
+                    accessories: caseItem.accessories,
+                    importantNotes: caseItem.importantNotes,
+                    status: caseItem.status,
+                    createdAt: new Date(caseItem.createdAt),
+                    updatedAt: new Date(caseItem.updatedAt),
+                    createdBy: caseItem.createdBy
+                };
+                const statusHistory = await this.getCaseStatusHistory(caseItem.id);
+                if (isCaseInAlarm(cleanCase, statusHistory)) {
+                    alarmCases.push(cleanCase);
+                }
+            }
+            console.log('Legacy method - antal alarm-sager fundet:', alarmCases.length);
+            return alarmCases;
+        }
+        catch (error) {
+            console.error('Error in legacy alarm cases method:', error);
+            return [];
+        }
+    }
+    async getCasesInAlarm() {
+        try {
+            const allCases = await db.select().from(cases);
+            const casesWithHistory = await Promise.all(allCases.map(async (caseItem) => {
+                const history = await this.getCaseStatusHistory(caseItem.id);
+                return {
+                    ...caseItem,
+                    statusHistory: history
+                };
+            }));
+            return casesWithHistory.filter(caseItem => this.isCaseInAlarm(caseItem, caseItem.statusHistory));
+        }
+        catch (error) {
+            console.error('Fejl ved hentning af alarm-sager:', error);
+            throw error;
+        }
+    }
+    async getStatusCounts() {
+        try {
+            console.log('getStatusCounts called - starting query');
+            // Returnér antal sager pr. status undtagen 'completed'
+            const statusCounts = await db
+                .select({
+                status: cases.status,
+                count: sql `count(*)`,
+            })
+                .from(cases)
+                .where(ne(cases.status, 'completed'))
+                .groupBy(cases.status);
+            console.log('Raw status counts from database:', statusCounts);
+            const result = statusCounts.reduce((acc, { status, count }) => {
+                acc[status] = Number(count);
+                return acc;
+            }, {});
+            console.log('getStatusCounts final result:', result);
+            return result;
+        }
+        catch (error) {
+            console.error('Error in getStatusCounts:', error);
+            return {};
+        }
+    }
+    async deleteCustomer(id) {
+        await db.delete(customers).where(eq(customers.id, id));
+    }
+    // Customer authentication methods
+    async getCustomerUser(customerId) {
+        try {
+            const [user] = await db
+                .select()
+                .from(users)
+                .where(and(eq(users.customerId, customerId), eq(users.isCustomer, true)))
+                .limit(1);
+            return user;
+        }
+        catch (error) {
+            console.error('Error getting customer user:', error);
+            return undefined;
+        }
+    }
+    async createCustomerUser(customer, caseNumber) {
+        try {
+            // Username er telefonnummer, password er sagsnummer (hashed)
+            const hashedPassword = await import('./auth.js').then(auth => auth.hashPassword(caseNumber));
+            const [user] = await db
+                .insert(users)
+                .values({
+                username: customer.phone,
+                password: hashedPassword,
+                name: customer.name,
+                isWorker: false,
+                isAdmin: false,
+                isCustomer: true,
+                customerId: customer.id,
+            })
+                .returning();
+            console.log(`Created customer user for ${customer.name} (${customer.phone})`);
+            return user;
+        }
+        catch (error) {
+            console.error('Error creating customer user:', error);
+            throw error;
+        }
+    }
+    async createOrUpdateCustomerUsers() {
+        try {
+            console.log('Starting customer user creation/update process...');
+            // Hent alle kunder
+            const allCustomers = await this.getCustomers();
+            for (const customer of allCustomers) {
+                // Find første sag for denne kunde
+                const customerCases = await db
+                    .select()
+                    .from(cases)
+                    .where(eq(cases.customerId, customer.id))
+                    .orderBy(asc(cases.createdAt))
+                    .limit(1);
+                if (customerCases.length === 0) {
+                    console.log(`Springer over kunde ${customer.name} - ingen sager fundet`);
+                    continue;
+                }
+                const firstCase = customerCases[0];
+                // Tjek om customer user allerede eksisterer
+                const existingUser = await this.getCustomerUser(customer.id);
+                if (!existingUser) {
+                    // Opret ny customer user
+                    await this.createCustomerUser(customer, firstCase.caseNumber);
+                    console.log(`Oprettet login for kunde: ${customer.name} (tlf: ${customer.phone}, sag: ${firstCase.caseNumber})`);
+                }
+                else {
+                    console.log(`Kunde ${customer.name} har allerede en bruger`);
+                }
+            }
+            console.log('Customer user creation/update process completed');
+        }
+        catch (error) {
+            console.error('Error in createOrUpdateCustomerUsers:', error);
             throw error;
         }
     }

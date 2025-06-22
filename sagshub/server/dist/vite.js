@@ -2,10 +2,9 @@ import express from "express";
 import fs from "fs";
 import path, { dirname } from "path";
 import { fileURLToPath } from "url";
-import { createLogger } from "vite";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-const viteLogger = createLogger();
+// const viteLogger = createLogger(); // Removed due to compatibility
 export function log(message, source = "express") {
     const formattedTime = new Date().toLocaleTimeString("en-US", {
         hour: "numeric",

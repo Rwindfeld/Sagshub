@@ -121,21 +121,24 @@ export function CustomerList({ customers, onSelectCustomer, disableLocalSorting 
           </TableRow>
         </TableHeader>
         <TableBody>
-          {sortedCustomers.map((customer) => (
-            <TableRow 
-              key={customer.id}
-              className="cursor-pointer hover:bg-muted/50"
-              onClick={() => onSelectCustomer?.(customer)}
-            >
-              <TableCell>#{formatCustomerId(customer.id)}</TableCell>
-              <TableCell className="font-medium">{customer.name}</TableCell>
-              <TableCell>{customer.phone}</TableCell>
-              <TableCell>{customer.email || '-'}</TableCell>
-              <TableCell>
-                {format(new Date(customer.createdAt), "d. MMM yyyy", { locale: da })}
-              </TableCell>
-            </TableRow>
-          ))}
+          {sortedCustomers.map((customer, index) => {
+            const isEven = index % 2 === 0;
+            return (
+              <TableRow 
+                key={customer.id}
+                className={`cursor-pointer hover:bg-muted/50 ${isEven ? 'bg-white' : 'bg-gray-50'}`}
+                onClick={() => onSelectCustomer?.(customer)}
+              >
+                <TableCell>#{formatCustomerId(customer.id)}</TableCell>
+                <TableCell className="font-medium">{customer.name}</TableCell>
+                <TableCell>{customer.phone}</TableCell>
+                <TableCell>{customer.email || '-'}</TableCell>
+                <TableCell>
+                  {format(new Date(customer.createdAt), "d. MMM yyyy", { locale: da })}
+                </TableCell>
+              </TableRow>
+            );
+          })}
           {sortedCustomers.length === 0 && (
             <TableRow>
               <TableCell colSpan={5} className="text-center py-4 text-muted-foreground">

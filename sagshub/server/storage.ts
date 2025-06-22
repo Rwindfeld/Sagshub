@@ -1,4 +1,4 @@
-import { db } from "./db";
+import { db } from "./db.js";
 import { eq, desc, asc, and, or, like, ilike, sql, ne } from "drizzle-orm";
 import type {
   User,
@@ -12,7 +12,7 @@ import type {
   InternalCase,
   InsertInternalCase,
   InternalCaseWithDetails
-} from "../shared/schema";
+} from "../shared/schema.js";
 import { 
   users, 
   customers, 
@@ -1082,47 +1082,66 @@ export class DatabaseStorage implements IStorage {
       console.log('Søger efter kunder med term:', searchTerm);
       const offset = (page - 1) * pageSize;
 
-      // Build base query
-      let query = db
-        .select()
-        .from(customers);
-
-      let countQuery = db
-        .select({ count: sql<number>`count(*)` })
-        .from(customers);
-
+      // Build base query using raw SQL like searchCustomers
+      let countQuery = 'SELECT COUNT(*)::int AS count FROM customers';
+      let dataQuery = `
+        SELECT id, name, phone, email, address, city, postal_code, notes, created_at, updated_at
+        FROM customers
+      `;
+      
       // Add search conditions if searchTerm is provided
       if (searchTerm?.trim()) {
-        const searchPattern = `%${searchTerm.trim()}%`;
-        const searchConditions = [
-          like(customers.name, searchPattern),
-          like(customers.phone, searchPattern),
-          like(customers.email, searchPattern),
-          like(customers.address, searchPattern),
-          like(customers.city, searchPattern),
-        ];
+        const searchPattern = searchTerm.trim();
+        console.log('Search pattern:', searchPattern);
+        
+        let whereClause = `
+          WHERE (
+            name ILIKE '%${searchPattern}%' OR
+            phone ILIKE '%${searchPattern}%' OR
+            email ILIKE '%${searchPattern}%' OR
+            address ILIKE '%${searchPattern}%' OR
+            city ILIKE '%${searchPattern}%'
+        `;
         
         // Add ID search if it's a number
-        if (/^\d+$/.test(searchTerm.trim())) {
-          searchConditions.push(eq(customers.id, Number(searchTerm.trim())));
+        if (/^\d+$/.test(searchPattern)) {
+          whereClause += ` OR id = ${Number(searchPattern)}`;
         }
-
-        const whereCondition = or(...searchConditions);
-        query = query.where(whereCondition);
-        countQuery = countQuery.where(whereCondition);
+        
+        whereClause += ')';
+        
+        countQuery += whereClause;
+        dataQuery += whereClause;
+        console.log('Added search conditions for term:', searchPattern);
       }
 
-      console.log('Executing search query...');
-      const [{ count }] = await countQuery;
-      const totalPages = Math.ceil(count / pageSize);
-
-      // Apply pagination and ordering
-      const items = await query
-        .orderBy(desc(customers.createdAt))
-        .limit(pageSize)
-        .offset(offset);
+      console.log('Executing count query:', countQuery);
+      const countResult = await db.execute(sql([countQuery]));
+      const count = countResult.rows?.[0]?.count || 0;
+      console.log('Count result:', count);
+      
+      // Add ordering and pagination to data query
+      dataQuery += ` ORDER BY created_at DESC LIMIT ${pageSize} OFFSET ${offset}`;
+      
+      console.log('Executing data query:', dataQuery);
+      const result = await db.execute(sql([dataQuery]));
+      const items = result.rows?.map((row: any) => ({
+        id: row.id,
+        name: row.name,
+        phone: row.phone,
+        email: row.email,
+        address: row.address,
+        city: row.city,
+        postalCode: row.postal_code,
+        notes: row.notes,
+        createdAt: new Date(row.created_at),
+        updatedAt: new Date(row.updated_at)
+      })) || [];
 
       console.log('Fandt', items.length, 'kunder');
+      console.log('First few results:', items.slice(0, 2).map(c => ({ id: c.id, name: c.name, phone: c.phone })));
+      
+      const totalPages = Math.ceil(count / pageSize);
       
       return {
         items,

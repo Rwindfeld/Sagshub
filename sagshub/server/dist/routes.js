@@ -4,9 +4,10 @@ import { insertCaseSchema, insertCustomerSchema, insertUserSchema, insertRMASche
 import { eq } from 'drizzle-orm';
 import { z } from "zod";
 import { db } from "./db";
-import { users, internalCases } from "../shared/schema";
+import { internalCases } from "../shared/schema";
 import { sql } from "drizzle-orm";
 import { findAndTranslateEnglishCases } from './translate';
+import { registerRoutes as registerAdditionalRoutes } from "./routes/index.js";
 const updateStatusSchema = z.object({
     status: z.enum([
         'created',
@@ -21,7 +22,34 @@ const updateStatusSchema = z.object({
         'completed'
     ]),
     comment: z.string().min(1, "Kommentar er påkrævet"),
+    updatedByName: z.string().optional(),
 });
+// Funktion til at oversætte status til dansk
+function translateStatus(status) {
+    const statusTranslations = {
+        'created': 'Oprettet',
+        'in_progress': 'Under behandling',
+        'offer_created': 'Tilbud oprettet',
+        'waiting_customer': 'Afventer kunde',
+        'offer_accepted': 'Tilbud accepteret',
+        'offer_rejected': 'Tilbud afvist',
+        'waiting_parts': 'Venter på dele',
+        'preparing_delivery': 'Klargør levering',
+        'ready_for_pickup': 'Klar til afhentning',
+        'completed': 'Afsluttet',
+        // RMA status
+        'oprettet': 'Oprettet',
+        'under_behandling': 'Under behandling',
+        'afsluttet': 'Afsluttet',
+        // Order status
+        'pending': 'Afventer',
+        'ordered': 'Bestilt',
+        'received': 'Modtaget',
+        'delivered': 'Leveret',
+        'cancelled': 'Annulleret'
+    };
+    return statusTranslations[status] || status;
+}
 // Helper function for generating case numbers
 async function generateCaseNumber(treatment) {
     const prefix = {
@@ -66,6 +94,10 @@ const authenticateToken = (req, res, next) => {
 export async function registerRoutes(app) {
     // Setup authentication
     setupAuth(app);
+    // Register cases router
+    // Cases routes are now included in registerAdditionalRoutes
+    // Register additional routes (including user management)
+    await registerAdditionalRoutes(app);
     // Migrate existing passwords to secure format
     try {
         await migrateUserPasswords();
@@ -75,6 +107,13 @@ export async function registerRoutes(app) {
     }
     // Setup initial admin if needed
     await setupInitialAdmin();
+    // Create customer users for existing customers
+    try {
+        await storage.createOrUpdateCustomerUsers();
+    }
+    catch (error) {
+        console.error('Error creating customer users:', error);
+    }
     // Health check endpoint - dette er offentligt tilgængeligt
     app.get("/api/health", (req, res) => {
         res.status(200).json({ status: "OK" });
@@ -115,7 +154,9 @@ export async function registerRoutes(app) {
         const page = parseInt(req.query.page) || 1;
         const pageSize = parseInt(req.query.pageSize) || 6;
         const searchTerm = req.query.search;
+        console.log(`Customers endpoint called with: page=${page}, pageSize=${pageSize}, searchTerm="${searchTerm}"`);
         const customers = await storage.getPaginatedCustomers(page, pageSize, searchTerm);
+        console.log(`Returning ${customers.items.length} customers out of ${customers.total} total`);
         res.json(customers);
     });
     // Customer search route 
@@ -126,8 +167,9 @@ export async function registerRoutes(app) {
             const searchTerm = req.query.q;
             console.log("Received search request with term:", searchTerm);
             if (!searchTerm) {
-                console.log("No search term provided, returning empty array");
-                return res.json([]);
+                // Hvis intet søgeord, returnér alle kunder
+                const allCustomers = await storage.getCustomers();
+                return res.json(allCustomers);
             }
             const customers = await storage.searchCustomers(searchTerm);
             console.log("Found customers:", customers);
@@ -208,39 +250,60 @@ export async function registerRoutes(app) {
             return res.sendStatus(403);
         try {
             const searchTerm = req.query.q;
+            console.log("Global search request received with term:", searchTerm);
             if (!searchTerm?.trim()) {
+                console.log("Global search: empty search term, returning empty array");
                 return res.json([]);
             }
+            console.log("Global search: performing parallel searches for:", searchTerm.trim());
             // Udfør alle søgninger parallelt
-            const [customers, cases, rmas] = await Promise.all([
-                storage.searchCustomers(searchTerm).catch(() => []),
-                storage.searchCases(searchTerm).catch(() => []),
-                storage.searchRMAs(searchTerm).catch(() => [])
+            const [customers, cases, rmas, orders] = await Promise.all([
+                storage.searchCustomers(searchTerm).catch((err) => { console.error("Customer search error:", err); return []; }),
+                storage.searchCases(searchTerm).catch((err) => { console.error("Case search error:", err); return []; }),
+                storage.searchRMAs(searchTerm).catch((err) => { console.error("RMA search error:", err); return []; }),
+                storage.searchOrders(searchTerm).catch((err) => { console.error("Order search error:", err); return []; })
             ]);
+            console.log("Global search results:", {
+                customers: customers.length,
+                cases: cases.length,
+                rmas: rmas.length,
+                orders: orders.length
+            });
             // Konverter resultaterne til det korrekte format
             const results = [
-                ...customers.map(customer => ({
-                    id: customer.id,
-                    type: 'customer',
-                    title: customer.name,
-                    subtitle: `Tlf: ${customer.phone}${customer.email ? ` • Email: ${customer.email}` : ''}`,
-                    link: `/worker/customers/${customer.id}`
-                })),
+                ...customers.map(customer => {
+                    console.log("Global search - mapping customer:", customer.id, customer.name);
+                    return {
+                        id: customer.id,
+                        type: 'customer',
+                        title: customer.name,
+                        subtitle: `Tlf: ${customer.phone}${customer.email ? ` • Email: ${customer.email}` : ''}`,
+                        link: `/worker/customers/${customer.id}`
+                    };
+                }),
                 ...cases.map(case_ => ({
                     id: case_.id,
                     type: 'case',
                     title: `${case_.caseNumber} - ${case_.title || ''}`,
-                    subtitle: `Kunde: ${case_.customerName} • Status: ${case_.status}`,
+                    subtitle: `Kunde: ${case_.customerName} • Status: ${translateStatus(case_.status)}`,
                     link: `/worker/cases/${case_.id}`
                 })),
                 ...rmas.map(rma => ({
                     id: rma.id,
                     type: 'rma',
-                    title: `${rma.rmaNumber} - ${rma.title || ''}`,
-                    subtitle: `Kunde: ${rma.customerName} • Status: ${rma.status}`,
+                    title: `${rma.rmaNumber} - ${rma.description || rma.model || 'RMA'}`,
+                    subtitle: `Kunde: ${rma.customerName} • Status: ${translateStatus(rma.status)}`,
                     link: `/worker/rma/${rma.id}`
+                })),
+                ...orders.map(order => ({
+                    id: order.id,
+                    type: 'order',
+                    title: `${order.orderNumber} - ${order.itemsOrdered || 'Bestilling'}`,
+                    subtitle: `Kunde: ${order.customerName} • Status: ${translateStatus(order.status)}`,
+                    link: `/worker/orders/${order.id}`
                 }))
             ];
+            console.log("Global search - final results:", results);
             // Returner resultaterne
             res.json(results);
         }
@@ -272,7 +335,8 @@ export async function registerRoutes(app) {
                 password: hashedPassword,
                 name: result.data.name,
                 isWorker: result.data.isWorker,
-                isAdmin: result.data.isAdmin
+                isAdmin: result.data.isAdmin,
+                birthday: result.data.birthday || null
             });
             res.status(201).json(user);
         }
@@ -315,12 +379,17 @@ export async function registerRoutes(app) {
         }
         const page = parseInt(req.query.page) || 1;
         const pageSize = parseInt(req.query.pageSize) || 6;
-        const searchTerm = req.query.searchTerm;
+        const searchTerm = req.query.search || req.query.searchTerm;
         const treatment = req.query.treatment;
         const priority = req.query.priority;
         const status = req.query.status;
         const sort = req.query.sort;
-        const customerId = req.query.customerId ? parseInt(req.query.customerId) : undefined;
+        const includeCompleted = req.query.includeCompleted === 'true';
+        let customerId = req.query.customerId ? parseInt(req.query.customerId) : undefined;
+        // For customer users, force filter by their customer ID
+        if (!req.user.isWorker && req.user.customerId) {
+            customerId = req.user.customerId;
+        }
         try {
             const cases = await storage.getPaginatedCases({
                 page,
@@ -331,7 +400,8 @@ export async function registerRoutes(app) {
                 status,
                 sort,
                 customerId,
-                isWorker: req.user.isWorker
+                isWorker: req.user.isWorker,
+                includeCompleted
             });
             return res.json(cases);
         }
@@ -340,7 +410,92 @@ export async function registerRoutes(app) {
             return res.status(500).json({ error: 'Internal server error' });
         }
     });
-    // Get case by ID or case number
+    // Specialruter først
+    app.get("/api/cases/alarm", async (req, res) => {
+        if (!req.isAuthenticated() || !req.user.isWorker) {
+            return res.sendStatus(403);
+        }
+        try {
+            const alarmCases = await storage.getAlarmCases();
+            console.log('Antal sager i alarm:', alarmCases.length);
+            res.json(alarmCases);
+        }
+        catch (error) {
+            console.error("Error fetching alarm cases:", error);
+            res.status(500).json({ error: "Der opstod en fejl ved hentning af sager i alarm" });
+        }
+    });
+    app.get("/api/cases/status-counts", async (req, res) => {
+        if (!req.isAuthenticated()) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+        try {
+            console.log('Status counts endpoint called');
+            const statusCounts = await storage.getStatusCounts();
+            console.log('Status counts from storage:', statusCounts);
+            res.json(statusCounts);
+        }
+        catch (error) {
+            console.error('Error fetching status counts:', error);
+            res.status(500).json({ error: 'Internal server error' });
+        }
+    });
+    app.get("/api/cases/total", async (req, res) => {
+        if (!req.isAuthenticated()) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+        try {
+            const total = await storage.getTotalCases();
+            return res.json({ total });
+        }
+        catch (error) {
+            console.error('Error fetching total cases:', error);
+            return res.status(500).json({ error: 'Internal server error' });
+        }
+    });
+    app.get("/api/cases/alarm-count", async (req, res) => {
+        if (!req.isAuthenticated() || !req.user.isWorker) {
+            return res.status(403).json({ error: 'Forbidden' });
+        }
+        try {
+            const alarmCases = await storage.getAlarmCases();
+            return res.json({ count: alarmCases.length });
+        }
+        catch (error) {
+            console.error('Fejl ved hentning af alarm-count:', error);
+            return res.status(500).json({ error: 'Internal server error' });
+        }
+    });
+    // PATCH kun for tal
+    app.patch("/api/cases/:id(\\d+)", async (req, res) => {
+        console.log(`[DEBUG] Hit numeric PATCH route for case ID: ${req.params.id}`);
+        if (!req.isAuthenticated() || !req.user.isWorker)
+            return res.sendStatus(403);
+        try {
+            const caseId = parseInt(req.params.id);
+            if (isNaN(caseId)) {
+                return res.status(400).json({ error: "Ugyldigt sagsnummer" });
+            }
+            console.log(`[DEBUG] PATCH /api/cases/${caseId} (numeric route) - Request body:`, JSON.stringify(req.body, null, 2));
+            const result = insertCaseSchema.partial().safeParse(req.body);
+            if (!result.success) {
+                console.log(`[DEBUG] Validation failed (numeric route):`, result.error);
+                return res.status(400).json(result.error);
+            }
+            console.log(`[DEBUG] Validation passed (numeric route):`, JSON.stringify(result.data, null, 2));
+            const updatedCase = await storage.updateCase(caseId, result.data);
+            if (!updatedCase) {
+                return res.status(404).json({ error: "Sagen blev ikke fundet" });
+            }
+            console.log(`[DEBUG] Case updated successfully (numeric route):`, JSON.stringify(updatedCase, null, 2));
+            res.json(updatedCase);
+        }
+        catch (error) {
+            console.error("Error updating case:", error);
+            res.status(500).json({ error: "Der opstod en fejl ved opdatering af sagen" });
+        }
+    });
+    // GET catch-all til sidst
     app.get("/api/cases/:idOrNumber", async (req, res) => {
         try {
             if (!req.isAuthenticated()) {
@@ -348,23 +503,9 @@ export async function registerRoutes(app) {
             }
             const idOrNumber = req.params.idOrNumber;
             console.log(`Attempting to fetch case with idOrNumber: ${idOrNumber}`);
-            let case_;
-            try {
-                // Først prøv at parse som ID
-                const caseId = parseInt(idOrNumber);
-                if (!isNaN(caseId)) {
-                    console.log(`Trying to fetch case by ID: ${caseId}`);
-                    case_ = await storage.getCase(caseId);
-                }
-                // Hvis ikke fundet som ID, prøv som sagsnummer
-                if (!case_) {
-                    console.log(`Case not found by ID, trying case number: ${idOrNumber}`);
-                    case_ = await storage.getCase(idOrNumber);
-                }
-            }
-            catch (error) {
-                console.error("Error fetching case:", error);
-                throw new Error(`Fejl ved hentning af sag: ${error.message}`);
+            let case_ = await storage.getCase(idOrNumber);
+            if (!case_ && !isNaN(Number(idOrNumber))) {
+                case_ = await storage.getCase(Number(idOrNumber));
             }
             if (!case_) {
                 console.log(`Case not found for idOrNumber: ${idOrNumber}`);
@@ -415,15 +556,16 @@ export async function registerRoutes(app) {
                 });
             }
             const caseNumber = await generateCaseNumber(result.data.treatment.toLowerCase());
-            console.log("Creating case with user ID:", req.user.id); // Debug log
             // Sikrer at vi gemmer den aktuelle brugers ID
-            const case_ = await storage.createCase({
+            const caseDataToCreate = {
                 ...result.data,
                 customerId,
                 caseNumber,
                 status: 'created',
-                createdBy: req.user.id, // Eksplicit sæt bruger ID
-            });
+                createdBy: req.user.id,
+                createdByName: result.data.createdByName,
+            };
+            const case_ = await storage.createCase(caseDataToCreate);
             res.status(201).json(case_);
         }
         catch (error) {
@@ -433,6 +575,7 @@ export async function registerRoutes(app) {
     });
     // Add this route in the case management section
     app.patch("/api/cases/:id", async (req, res) => {
+        console.log(`[DEBUG] Hit general PATCH route for case ID: ${req.params.id}`);
         if (!req.isAuthenticated() || !req.user.isWorker)
             return res.sendStatus(403);
         try {
@@ -440,15 +583,19 @@ export async function registerRoutes(app) {
             if (isNaN(caseId)) {
                 return res.status(400).json({ error: "Ugyldigt sagsnummer" });
             }
+            console.log(`[DEBUG] PATCH /api/cases/${caseId} - Request body:`, JSON.stringify(req.body, null, 2));
             // Validate the request body using the case schema
             const result = insertCaseSchema.partial().safeParse(req.body);
             if (!result.success) {
+                console.log(`[DEBUG] Validation failed:`, result.error);
                 return res.status(400).json(result.error);
             }
+            console.log(`[DEBUG] Validation passed:`, JSON.stringify(result.data, null, 2));
             const updatedCase = await storage.updateCase(caseId, result.data);
             if (!updatedCase) {
                 return res.status(404).json({ error: "Sagen blev ikke fundet" });
             }
+            console.log(`[DEBUG] Case updated successfully:`, JSON.stringify(updatedCase, null, 2));
             res.json(updatedCase);
         }
         catch (error) {
@@ -465,9 +612,11 @@ export async function registerRoutes(app) {
         }
         try {
             const caseId = parseInt(req.params.id);
-            const { status, comment } = result.data;
+            const { status, comment, updatedByName } = result.data;
+            // Tilføj: brug evt. updatedByName fra body, ellers brug brugerens navn
+            const updatedByName_ = updatedByName || req.user.name;
             // Update case status and add to history
-            const updatedCase = await storage.updateCaseStatusWithHistory(caseId, status, comment || "", req.user.id);
+            const updatedCase = await storage.updateCaseStatusWithHistory(caseId, status, comment || "", req.user.id, updatedByName_);
             res.json(updatedCase);
         }
         catch (error) {
@@ -489,7 +638,7 @@ export async function registerRoutes(app) {
         try {
             const page = parseInt(req.query.page) || 1;
             const pageSize = parseInt(req.query.pageSize) || 6;
-            const searchTerm = req.query.searchTerm;
+            const searchTerm = req.query.search;
             const status = req.query.status;
             const sort = req.query.sort || 'default';
             const options = {
@@ -562,11 +711,11 @@ export async function registerRoutes(app) {
         if (!req.isAuthenticated() || !req.user.isWorker)
             return res.sendStatus(403);
         try {
-            const { status, comment } = req.body;
+            const { status, comment, updatedByName } = req.body;
             if (!status || !comment) {
                 return res.status(400).json({ error: "Status og kommentar er påkrævet" });
             }
-            const rma = await storage.updateRMAStatusWithHistory(parseInt(req.params.id), status, comment, req.user.id);
+            const rma = await storage.updateRMAStatusWithHistory(parseInt(req.params.id), status, comment, req.user.id, updatedByName);
             res.json(rma);
         }
         catch (error) {
@@ -795,46 +944,16 @@ export async function registerRoutes(app) {
             const onlySent = req.query.onlySent === 'true';
             const onlyReceived = req.query.onlyReceived === 'true';
             const onlyUnread = req.query.onlyUnread === 'true';
-            const result = await db
-                .select({
-                id: internalCases.id,
-                caseId: internalCases.caseId,
-                senderId: internalCases.senderId,
-                senderName: users.name,
-                receiverId: internalCases.receiverId,
-                receiverName: users.name,
-                message: internalCases.message,
-                read: internalCases.read,
-                createdAt: internalCases.createdAt,
-                updatedAt: internalCases.updatedAt
-            })
-                .from(internalCases)
-                .leftJoin(users, eq(internalCases.senderId, users.id));
-            // Filter baseret på brugerens ID og parametre
-            let query = result;
-            if (onlySent) {
-                query = query.filter(item => item.senderId === req.user.id);
-            }
-            else if (onlyReceived) {
-                query = query.filter(item => item.receiverId === req.user.id);
-            }
-            else {
-                query = query.filter(item => item.senderId === req.user.id || item.receiverId === req.user.id);
-            }
-            if (onlyUnread) {
-                query = query.filter(item => !item.read && item.receiverId === req.user.id);
-            }
-            // Paginering
-            const totalItems = query.length;
-            const startIndex = (page - 1) * pageSize;
-            const items = query.slice(startIndex, startIndex + pageSize);
-            res.json({
-                items,
-                totalItems,
+            const userId = req.user.id;
+            const result = await storage.getPaginatedInternalCases({
                 page,
                 pageSize,
-                totalPages: Math.ceil(totalItems / pageSize)
+                userId,
+                onlySent,
+                onlyReceived,
+                onlyUnread
             });
+            res.json(result);
         }
         catch (error) {
             console.error("Error fetching internal cases:", error);
@@ -984,6 +1103,67 @@ export async function registerRoutes(app) {
         catch (error) {
             console.error("Error translating cases:", error);
             res.status(500).json({ error: "Der opstod en fejl ved oversættelse af sagerne" });
+        }
+    });
+    // Slet kunde (kun admin)
+    app.delete("/api/customers/:id", async (req, res) => {
+        if (!req.isAuthenticated() || !req.user.isAdmin) {
+            return res.status(403).json({ error: "Kun administratorer kan slette kunder" });
+        }
+        const customerId = parseInt(req.params.id);
+        if (isNaN(customerId)) {
+            return res.status(400).json({ error: "Ugyldigt kunde-ID" });
+        }
+        try {
+            const customer = await storage.getCustomer(customerId);
+            if (!customer) {
+                return res.status(404).json({ error: "Kunde ikke fundet" });
+            }
+            // Slet kunden
+            await storage.deleteCustomer(customerId);
+            res.json({ message: "Kunde slettet" });
+        }
+        catch (error) {
+            console.error("Fejl ved sletning af kunde:", error);
+            res.status(500).json({ error: "Der opstod en fejl ved sletning af kunden" });
+        }
+    });
+    // Customer data export endpoint
+    app.get("/api/customers/:id/export", async (req, res) => {
+        if (!req.isAuthenticated() || !req.user.isWorker)
+            return res.sendStatus(403);
+        try {
+            const customerId = parseInt(req.params.id);
+            const includeCases = req.query.includeCases === 'true';
+            const includeOrders = req.query.includeOrders === 'true';
+            const includeRMA = req.query.includeRMA === 'true';
+            // Hent kundens stamdata
+            const customer = await storage.getCustomer(customerId);
+            if (!customer)
+                return res.sendStatus(404);
+            const exportData = {
+                customer: customer
+            };
+            // Hent sager hvis ønsket
+            if (includeCases) {
+                const cases = await storage.getCasesByCustomerId(customerId);
+                exportData.cases = cases;
+            }
+            // Hent bestillinger hvis ønsket
+            if (includeOrders) {
+                const orders = await storage.getOrdersByCustomerId(customerId);
+                exportData.orders = orders;
+            }
+            // Hent RMA hvis ønsket
+            if (includeRMA) {
+                const rmas = await storage.getRMAsByCustomerId(customerId);
+                exportData.rmas = rmas;
+            }
+            res.json(exportData);
+        }
+        catch (error) {
+            console.error("Error exporting customer data:", error);
+            res.status(500).json({ error: "Der opstod en fejl ved eksport af kundedata" });
         }
     });
 }

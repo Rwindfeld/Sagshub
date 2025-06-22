@@ -1,0 +1,83 @@
+Hvad var målet?
+At gøre det muligt for flere enheder (PC, mobil, tablet) på samme netværk at tilgå SagsHub, så alle kan bruge systemet samtidig – ikke kun på den computer hvor det kører.
+
+Kort opsummering til eksamen:
+For at gøre SagsHub tilgængelig for flere enheder på samme netværk, satte jeg serveren til at lytte på alle netværksadresser, brugte en statisk IP, åbnede de nødvendige porte i firewall, og sikrede at alle API-kald og session/cookie-indstillinger virkede på tværs af IP og enheder. Det betyder, at alle på netværket kan tilgå systemet via browseren, og at login og data virker stabilt – uanset om man bruger PC, mobil eller tablet.
+
+2. Netværksopsætning – sådan gjorde du:
+
+A. Find din computers lokale IP-adresse
+• Åbn kommandoprompt og skriv ipconfig
+• Find “IPv4 Address” (fx 192.168.55.139)
+• Denne adresse er din computers “navn” på netværket
+
+B. Sæt en statisk IP-adresse
+• Gå ind i netværksindstillinger → Egenskaber for din netværksforbindelse
+• Vælg “Brug følgende IP-adresse” og indtast fx 192.168.55.139
+• Så ændrer din computer ikke IP, og andre kan altid finde den
+
+C. Åbn for adgang i firewall
+• Sørg for at Windows Firewall tillader indgående trafik på de porte du bruger (fx 5174 og 3000)
+• Så kan andre enheder på netværket “snakke” med din computer
+
+3. Kode- og serveropsætning – sådan gjorde jeg:
+A. Frontend (Vite/React)
+• Vite serveren blev sat til at lytte på alle netværksadresser:
+
+js
+
+Apply to cases.ts
+  server: {
+    host: '0.0.0.0',
+    port: 5174,
+    // ...
+  }
+• Så kan alle på netværket tilgå frontend via http://[din-ip]:5174
+
+B. Backend (Express/Node)
+• CORS blev sat op til at tillade requests fra både localhost og din IP:
+
+js
+
+Apply to cases.ts
+  app.use(cors({
+    origin: ['http://localhost:5174', 'http://192.168.55.139:5174'],
+    credentials: true,
+    // ...
+  }));
+
+• Session/cookie-indstillinger blev sat til at virke på tværs af IP og localhost:
+
+js
+
+Apply to cases.ts
+  app.use(session({
+    secret: 'hemmelig',
+    proxy: true,
+    cookie: {
+      secure: false,
+      sameSite: 'lax',
+      httpOnly: true
+    }
+  }));
+
+C. Frontend fetches og API-kald
+• Alle API-kald blev rettet til at bruge relative stier (fx /api/cases) i stedet for hardkodet localhost eller IP.
+• Så virker det uanset hvilken enhed eller IP du bruger.
+
+4. Hvorfor er det vigtigt?
+• Netværksadgang: Når serveren lytter på 0.0.0.0 og IP’en er statisk, kan alle på netværket finde og bruge systemet.
+• CORS og cookies: Gør at login/session virker på tværs af enheder og browsere.
+• Relative API-stier: Gør at koden ikke er låst til én bestemt IP eller computer – det er fleksibelt og robust.
+
+5. Menneskeligt forklaret
+• Du gør din computer til en “mini-server” på netværket – ligesom en router eller printer, som alle kan finde.
+• Du fortæller både Windows og koden, at “her må alle gerne komme ind og bruge systemet” – men kun hvis de er på dit netværk.
+• Du undgår fejl med “localhost” – fordi “localhost” kun virker på din egen computer, ikke på andres.
+
+6. Resultat
+• Alle på netværket kan nu åbne SagsHub i browseren på http://[din-ip]:5174
+• Login, sager, bestillinger, RMA osv. virker på tværs af enheder
+• Du kan nemt udvide eller flytte systemet, fordi koden ikke er låst til én maskine
+
+

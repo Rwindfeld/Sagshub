@@ -195,35 +195,38 @@ export function RMAList({
             </TableHeader>
             <TableBody>
               {itemsArray.length > 0 ? (
-                itemsArray.map((rma) => (
-                  <TableRow
-                    key={rma.id}
-                    className="cursor-pointer hover:bg-muted/50"
-                    onClick={() => setLocation(`/worker/rma/${rma.id}`)}
-                  >
-                    <TableCell>{rma.rmaNumber || '-'}</TableCell>
-                    <TableCell className="whitespace-normal">
-                      {rma.customerName || 
-                      (rma.customer ? rma.customer.name : `Kunde #${rma.customerId}`)}
-                    </TableCell>
-                    <TableCell className="whitespace-normal truncate max-w-[200px]">
-                      {rma.description || rma.faultDescription || '-'}
-                    </TableCell>
-                    <TableCell>{rma.model || rma.modelName || '-'}</TableCell>
-                    <TableCell>{rma.serialNumber || '-'}</TableCell>
-                    <TableCell>
-                      {rma.createdAt 
-                        ? format(new Date(rma.createdAt), "d. MMM yyyy", { locale: da })
-                        : '-'
-                      }
-                    </TableCell>
-                    <TableCell>
-                      <Badge className={statusColors[statusTranslations[rma.status] || 'bg-gray-500']}>
-                        {statusTranslations[rma.status] || 'Ukendt'}
-                      </Badge>
-                    </TableCell>
-                  </TableRow>
-                ))
+                itemsArray.map((rma, index) => {
+                  const isEven = index % 2 === 0;
+                  return (
+                    <TableRow
+                      key={rma.id}
+                      className={`cursor-pointer hover:bg-muted/50 ${isEven ? 'bg-white' : 'bg-gray-50'}`}
+                      onClick={() => setLocation(`/worker/rma/${rma.id}`)}
+                    >
+                      <TableCell>{rma.rmaNumber || '-'}</TableCell>
+                      <TableCell className="whitespace-normal">
+                        {rma.customerName || 
+                        (rma.customer ? rma.customer.name : `Kunde #${rma.customerId}`)}
+                      </TableCell>
+                      <TableCell className="whitespace-normal truncate max-w-[200px]">
+                        {rma.description || rma.faultDescription || '-'}
+                      </TableCell>
+                      <TableCell>{rma.model || rma.modelName || '-'}</TableCell>
+                      <TableCell>{rma.serialNumber || '-'}</TableCell>
+                      <TableCell>
+                        {rma.createdAt 
+                          ? format(new Date(rma.createdAt), "d. MMM yyyy", { locale: da })
+                          : '-'
+                        }
+                      </TableCell>
+                      <TableCell>
+                        <Badge className={statusColors[statusTranslations[rma.status] || 'bg-gray-500']}>
+                          {statusTranslations[rma.status] || 'Ukendt'}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
               ) : (
                 <TableRow>
                   <TableCell colSpan={7} className="text-center py-4 text-muted-foreground">

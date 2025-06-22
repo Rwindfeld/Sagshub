@@ -1,0 +1,70 @@
+Jeg har beskrevet i rapporten (afsnit 2.6 og 4.4), hvordan jeg bruger React Query til at håndtere og cache data fra serveren, fx sager og kunder. Det sikrer, at data altid er opdateret og at brugeroplevelsen er hurtig og responsiv.
+Til globale data, som login-status og brugerinformation, bruger jeg Context API. Det gør det nemt at dele information på tværs af hele frontend-appen, fx for at beskytte bestemte sider eller vise brugerens navn i headeren.
+Kort sagt: React Query til server-data, Context API til global app-state. 
+
+Jeg har arbejdet meget bevidst med state management i frontend, fordi det er vigtigt for både performance og vedligeholdelse.Overordnet bruger jeg to hovedværktøjer: Context API og React Query.
+
+Context API
+Jeg bruger Context API, når jeg har brug for at dele global state, som ikke nødvendigvis kommer fra serveren, men som skal være tilgængelig på tværs af mange komponenter. Et godt eksempel er brugerens login-status eller information om den aktuelle bruger. Det er data, der ændrer sig sjældent, og som jeg har brug for at kunne tilgå overalt i appen – fx for at vise brugerens navn i headeren eller for at beskytte bestemte sider.
+Fordele ved Context API:
+Perfekt til global state, der ikke ændrer sig ofte
+Simpelt og indbygget i React
+Ingen ekstra afhængigheder
+
+React Query
+React Query bruger jeg til server-state – altså data, der kommer fra backend, og som kan ændre sig uden for brugerens kontrol. Det kunne fx være listen over sager, kunder eller ordrer.
+React Query håndterer alt det besværlige for mig:
+Henter data fra API’et
+Cacher data, så det ikke skal hentes igen unødvendigt
+Opdaterer automatisk, hvis data ændrer sig på serveren
+Giver loading- og error-states “gratis”
+Fordele ved React Query:
+Gør det nemt at holde data opdateret og synkroniseret med serveren
+Forbedrer performance, fordi data caches
+Mindsker risikoen for bugs, fordi det håndterer asynkronitet og fejl
+
+Hvornår bruger jeg hvad?
+Context API:
+Når jeg har brug for at dele brugerinformation, tema, sprogvalg eller lignende på tværs af appen.
+React Query:
+Når jeg arbejder med data fra serveren, som sager, kunder, ordrer – altså alt, der kan ændre sig uden for brugerens kontrol, og som skal hentes, caches og opdateres automatisk.
+
+Eksempel:
+Brugerens login-status og rolle ligger i Context API, så jeg hurtigt kan tjekke, om brugeren må se en side. Listen over sager henter jeg med React Query, så den altid er opdateret, og jeg slipper for at lave mit eget cache-system. På den måde får jeg det bedste fra begge verdener:
+
+Context API til global, lokal state – og React Query til alt, der kommer fra serveren. 
+
+Mundtlig modelbesvarelse:
+"I Sagshub arbejder jeg med to typer 'state' i frontend: global tilstand som fx loginstatus, og ekstern data som sager og kunder. Jeg bruger Context API til det første, og React Query til det andet."
+
+🧠 Context API – global apptilstand:
+• Bruges til autentificering og roller
+• Fx: Er brugeren logget ind? Hvilken rolle har de?
+• Jeg bruger en UserContext, der bliver oprettet ved login, og holder styr på sessionsstatus globalt.
+tsx
+CopyEdit
+<UserContext.Provider value={{ user, setUser }}>
+  {children}
+</UserContext.Provider>
+
+"Hvis en bruger forsøger at tilgå /admin, tjekker mine ProtectedRoutes konteksten for rolle og adgang."
+
+🔄 React Query – ekstern (server) data:
+• Bruges til at hente, cache og opdatere data fra API’et
+• Fx: /api/cases, /api/customers, /api/orders
+• Funktioner som:
+• useQuery() → Hent data
+• useMutation() → Send opdateringer
+• invalidateQueries() → Genskab data ved ændringer
+"Jeg bruger også optimistic updates, så UI’et reagerer straks, mens serveren opdaterer i baggrunden."
+
+📋 Eksempel:
+• Loginstatus og rolle → håndteres i UserContext
+• Liste med kundesager → hentes med useQuery(['cases'])
+• Statusændring → sker med useMutation + invalidateQueries(['cases'])
+
+
+✅ Hvorfor kombinere dem?
+• Context er god til global, sjældent ændrende state
+• React Query er perfekt til asynkron server-state med mange kald og cachebehov
+

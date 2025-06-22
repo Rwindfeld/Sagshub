@@ -71,6 +71,63 @@ export function setupAuth(app) {
     app.use(passport.session());
     // Opret admin bruger ved startup
     setupInitialAdmin();
+    // Standard medarbejder login strategy
+    passport.use('worker', new LocalStrategy(async (username, password, done) => {
+        try {
+            logger.info(`Attempting worker login for user: ${username}`);
+            const user = await storage.getUserByUsername(username);
+            if (!user || !user.isWorker) {
+                logger.warn(`Worker login failed: User not found or not worker: ${username}`);
+                return done(null, false, { message: 'Forkert brugernavn eller adgangskode' });
+            }
+            const isValid = await comparePasswords(password, user.password);
+            if (!isValid) {
+                logger.warn(`Worker login failed: Invalid password for user: ${username}`);
+                return done(null, false, { message: 'Forkert brugernavn eller adgangskode' });
+            }
+            logger.info(`Worker login successful for user: ${username}`);
+            return done(null, user);
+        }
+        catch (error) {
+            logger.error('Worker login error:', error);
+            return done(error);
+        }
+    }));
+    // Customer login strategy (telefonnummer + sagsnummer)
+    passport.use('customer', new LocalStrategy({
+        usernameField: 'phone',
+        passwordField: 'caseNumber'
+    }, async (phone, caseNumber, done) => {
+        try {
+            logger.info(`Attempting customer login with phone: ${phone}, caseNumber: ${caseNumber}`);
+            // Find customer by phone
+            const customers = await storage.searchCustomers(phone);
+            const customer = customers.find(c => c.phone === phone);
+            if (!customer) {
+                logger.warn(`Customer login failed: Customer not found with phone: ${phone}`);
+                return done(null, false, { message: 'Forkert telefonnummer eller sagsnummer' });
+            }
+            // Find case by caseNumber for this customer
+            const case_ = await storage.getCaseByNumber(caseNumber);
+            if (!case_ || case_.customerId !== customer.id) {
+                logger.warn(`Customer login failed: Case not found or doesn't belong to customer`);
+                return done(null, false, { message: 'Forkert telefonnummer eller sagsnummer' });
+            }
+            // Find or create customer user account
+            let customerUser = await storage.getCustomerUser(customer.id);
+            if (!customerUser) {
+                // Create customer user account
+                customerUser = await storage.createCustomerUser(customer, caseNumber);
+            }
+            logger.info(`Customer login successful for: ${customer.name} (case: ${caseNumber})`);
+            return done(null, { ...customerUser, primaryCaseId: case_.id });
+        }
+        catch (error) {
+            logger.error('Customer login error:', error);
+            return done(error);
+        }
+    }));
+    // Default strategy for backward compatibility
     passport.use(new LocalStrategy(async (username, password, done) => {
         try {
             logger.info(`Attempting login for user: ${username}`);
@@ -130,7 +187,65 @@ export function setupAuth(app) {
             next(error);
         }
     });
-    app.post("/api/login", (req, res, next) => {
+    const handleWorkerLogin = (req, res, next) => {
+        logger.info("Received worker login request:", { username: req.body.username });
+        passport.authenticate("worker", (err, user, info) => {
+            if (err) {
+                logger.error('Worker authentication error:', err);
+                return res.status(500).json({ message: 'Der opstod en fejl ved login' });
+            }
+            if (!user) {
+                logger.warn('Worker authentication failed:', info?.message);
+                return res.status(401).json({ message: info?.message || 'Forkert brugernavn eller adgangskode' });
+            }
+            req.logIn(user, (err) => {
+                if (err) {
+                    logger.error('Worker login error:', err);
+                    return res.status(500).json({ message: 'Der opstod en fejl ved login' });
+                }
+                logger.info(`Worker logged in successfully: ${user.username}`);
+                return res.json({
+                    id: user.id,
+                    username: user.username,
+                    name: user.name,
+                    isWorker: user.isWorker,
+                    isAdmin: user.isAdmin,
+                    isCustomer: false
+                });
+            });
+        })(req, res, next);
+    };
+    const handleCustomerLogin = (req, res, next) => {
+        logger.info("Received customer login request:", { phone: req.body.phone, caseNumber: req.body.caseNumber });
+        passport.authenticate("customer", (err, user, info) => {
+            if (err) {
+                logger.error('Customer authentication error:', err);
+                return res.status(500).json({ message: 'Der opstod en fejl ved login' });
+            }
+            if (!user) {
+                logger.warn('Customer authentication failed:', info?.message);
+                return res.status(401).json({ message: info?.message || 'Forkert telefonnummer eller sagsnummer' });
+            }
+            req.logIn(user, (err) => {
+                if (err) {
+                    logger.error('Customer login error:', err);
+                    return res.status(500).json({ message: 'Der opstod en fejl ved login' });
+                }
+                logger.info(`Customer logged in successfully: ${user.name}`);
+                return res.json({
+                    id: user.id,
+                    username: user.username,
+                    name: user.name,
+                    isWorker: false,
+                    isAdmin: false,
+                    isCustomer: true,
+                    customerId: user.customerId,
+                    primaryCaseId: user.primaryCaseId
+                });
+            });
+        })(req, res, next);
+    };
+    const handleLogin = (req, res, next) => {
         logger.info("Received login request:", { username: req.body.username, isWorker: req.body.isWorker });
         passport.authenticate("local", (err, user, info) => {
             if (err) {
@@ -157,12 +272,27 @@ export function setupAuth(app) {
                     username: user.username,
                     name: user.name,
                     isWorker: user.isWorker,
-                    isAdmin: user.isAdmin
+                    isAdmin: user.isAdmin,
+                    isCustomer: user.isCustomer || false
                 });
             });
         })(req, res, next);
-    });
+    };
+    // Support both endpoints for backwards compatibility
+    app.post("/api/login", handleLogin);
+    app.post("/api/auth/login", handleLogin);
+    // Dedicated worker and customer login endpoints
+    app.post("/api/auth/worker-login", handleWorkerLogin);
+    app.post("/api/auth/customer-login", handleCustomerLogin);
     app.post("/api/logout", (req, res) => {
+        const username = req.user?.username;
+        req.logout(() => {
+            logger.info(`User logged out: ${username}`);
+            res.json({ message: 'Logged out successfully' });
+        });
+    });
+    // Support both endpoints for backwards compatibility
+    app.post("/api/auth/logout", (req, res) => {
         const username = req.user?.username;
         req.logout(() => {
             logger.info(`User logged out: ${username}`);
@@ -178,8 +308,11 @@ export function setupAuth(app) {
             id: user.id,
             username: user.username,
             name: user.name,
-            isWorker: user.isWorker,
-            isAdmin: user.isAdmin
+            isWorker: user.isWorker || false,
+            isAdmin: user.isAdmin || false,
+            isCustomer: user.isCustomer || false,
+            customerId: user.customerId || null,
+            primaryCaseId: user.primaryCaseId || null
         });
     });
 }

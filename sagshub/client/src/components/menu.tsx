@@ -2,11 +2,12 @@ import { useAuth } from "@/context/auth-context";
 import { Button } from "@/components/ui/button";
 import { LogOut, Bell } from "lucide-react";
 import { useLocation } from "wouter";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { LiveActivityMenu } from "./live-activity-menu";
 
 interface UnreadCountResponse {
   count: number;
@@ -16,9 +17,10 @@ export function Menu() {
   const { user, logoutMutation } = useAuth();
   const [location, setLocation] = useLocation();
   const [unreadCount, setUnreadCount] = useState(0);
+  const queryClient = useQueryClient();
 
-  const { data: unreadCountData, error } = useQuery<UnreadCountResponse>({
-    queryKey: ["unread-count"],
+  const { data: unreadCountData, error, refetch } = useQuery<UnreadCountResponse>({
+    queryKey: ["/api/internal-cases/unread-count"],
     queryFn: async () => {
       if (!user?.isWorker) return { count: 0 };
       try {
@@ -34,7 +36,7 @@ export function Menu() {
     retry: 3,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
     staleTime: 1000 * 60, // 1 minute
-    cacheTime: 1000 * 60 * 5, // 5 minutes
+    gcTime: 1000 * 60 * 5, // 5 minutes
   });
 
   useEffect(() => {
@@ -47,6 +49,13 @@ export function Menu() {
     console.error("Error in unread count query:", error);
   }
 
+  const handleInternalCasesClick = () => {
+    // Force refresh unread count before navigating
+    queryClient.invalidateQueries({ queryKey: ["/api/internal-cases/unread-count"] });
+    refetch();
+    setLocation("/worker/internal");
+  };
+
   return (
     <nav className="h-full w-full bg-white shadow-sm">
       <div className="p-4">
@@ -56,7 +65,7 @@ export function Menu() {
             <Button 
               variant="ghost" 
               size="icon"
-              onClick={() => setLocation("/worker/internal")}
+              onClick={handleInternalCasesClick}
               className="relative"
               title="Interne sager"
             >
@@ -114,7 +123,7 @@ export function Menu() {
           <Button
             variant={location === "/worker/internal" ? "default" : "ghost"}
             className="w-full justify-start"
-            onClick={() => setLocation("/worker/internal")}
+            onClick={handleInternalCasesClick}
           >
             Interne Sager
           </Button>
@@ -140,6 +149,9 @@ export function Menu() {
             <LogOut className="mr-2 h-4 w-4" />
             Log ud
           </Button>
+          
+          {/* Live aktivitet under Log ud knappen */}
+          {user?.isWorker && <LiveActivityMenu />}
         </div>
       </div>
     </nav>

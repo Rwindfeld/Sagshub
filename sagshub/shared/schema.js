@@ -50,6 +50,7 @@ export const DeviceType = {
 export const OrderStatus = {
     PENDING: 'pending',
     ORDERED: 'ordered',
+    SHIPPED: 'shipped',
     RECEIVED: 'received',
     DELIVERED: 'delivered',
     CANCELLED: 'cancelled'
@@ -85,6 +86,43 @@ export const cases = pgTable("cases", {
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
     createdBy: integer("created_by").notNull().references(() => users.id),
+});
+// Add RMA related schemas and types
+export const RMAStatus = {
+    CREATED: 'created',
+    SENT_TO_SUPPLIER: 'sent_to_supplier',
+    WAITING_SUPPLIER: 'waiting_supplier',
+    RECEIVED_FROM_SUPPLIER: 'received_from_supplier',
+    READY_FOR_PICKUP: 'ready_for_pickup',
+    COMPLETED: 'completed',
+    REJECTED: 'rejected'
+};
+export const rma = pgTable("rma", {
+    id: serial("id").primaryKey(),
+    rmaNumber: text("rma_number").notNull(),
+    customerId: integer("customer_id").notNull().references(() => customers.id),
+    description: text("description").notNull(),
+    deliveryDate: timestamp("delivery_date").notNull(),
+    sku: text("sku"),
+    model: text("model"),
+    serialNumber: text("serial_number"),
+    supplier: text("supplier"),
+    supplierRmaId: text("supplier_rma_id"),
+    status: text("status").notNull().default("created"),
+    shipmentDate: timestamp("shipment_date"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+    createdBy: integer("created_by").notNull().references(() => users.id),
+});
+// Tilføj rmaStatusHistory tabel
+export const rmaStatusHistory = pgTable("rma_status_history", {
+    id: serial("id").primaryKey(),
+    rmaId: integer("rma_id").notNull().references(() => rma.id),
+    status: text("status").notNull(),
+    comment: text("comment").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    createdBy: integer("created_by").notNull().references(() => users.id),
+    createdByName: text("created_by_name"),
 });
 export const orders = pgTable("orders", {
     id: serial("id").primaryKey(),
@@ -125,6 +163,21 @@ export const internalCases = pgTable("internal_cases", {
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
+// Tilføj nye tabeller for statustyper og prioritetstyper
+export const caseStatusTypes = pgTable("case_status_types", {
+    id: serial("id").primaryKey(),
+    key: text("key").notNull().unique(),
+    label: text("label").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+export const priorityTypes = pgTable("priority_types", {
+    id: serial("id").primaryKey(),
+    key: text("key").notNull().unique(),
+    label: text("label").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
 // Definer relations for users tabellen
 export const usersRelations = relations(users, ({ many }) => ({
     cases: many(cases),
@@ -157,6 +210,28 @@ export const casesRelations = relations(cases, ({ one }) => ({
     }),
     createdByUser: one(users, {
         fields: [cases.createdBy],
+        references: [users.id],
+    }),
+}));
+// Definer relations for RMA tabellen
+export const rmaRelations = relations(rma, ({ one }) => ({
+    customer: one(customers, {
+        fields: [rma.customerId],
+        references: [customers.id],
+    }),
+    createdByUser: one(users, {
+        fields: [rma.createdBy],
+        references: [users.id],
+    }),
+}));
+// Definer relations for rmaStatusHistory tabellen
+export const rmaStatusHistoryRelations = relations(rmaStatusHistory, ({ one }) => ({
+    rma: one(rma, {
+        fields: [rmaStatusHistory.rmaId],
+        references: [rma.id],
+    }),
+    createdByUser: one(users, {
+        fields: [rmaStatusHistory.createdBy],
         references: [users.id],
     }),
 }));
@@ -284,104 +359,6 @@ export const updateCaseSchema = z.object({
     ]),
     latestComment: z.string().optional(),
 });
-// Export the Customer schema for validation
-export const CustomerSchema = z.object({
-    id: z.number(),
-    name: z.string(),
-    email: z.string().nullable(),
-    phone: z.string(),
-    address: z.string().nullable(),
-    city: z.string().nullable(),
-    postalCode: z.string().nullable(),
-    createdAt: z.date(),
-    updatedAt: z.date(),
-    notes: z.string().nullable(),
-});
-// Export the RMA schema for validation
-export const RMASchema = z.object({
-    id: z.number(),
-    rmaNumber: z.string(),
-    customerId: z.number(),
-    description: z.string(),
-    deliveryDate: z.date(),
-    sku: z.string().nullable(),
-    model: z.string().nullable(),
-    serialNumber: z.string().nullable(),
-    supplier: z.string().nullable(),
-    supplierRmaId: z.string().nullable(),
-    shipmentDate: z.date().nullable(),
-    status: z.string(),
-    createdAt: z.date(),
-    updatedAt: z.date(),
-    createdBy: z.number(),
-});
-// Export the User schema for validation
-export const UserSchema = z.object({
-    id: z.number(),
-    username: z.string(),
-    name: z.string(),
-    isWorker: z.boolean(),
-    isAdmin: z.boolean(),
-});
-// Add RMA related schemas and types after the existing exports
-export const RMAStatus = {
-    CREATED: 'created',
-    SENT_TO_SUPPLIER: 'sent_to_supplier',
-    WAITING_SUPPLIER: 'waiting_supplier',
-    RECEIVED_FROM_SUPPLIER: 'received_from_supplier',
-    READY_FOR_PICKUP: 'ready_for_pickup',
-    COMPLETED: 'completed',
-    REJECTED: 'rejected'
-};
-export const rma = pgTable("rma", {
-    id: serial("id").primaryKey(),
-    rmaNumber: text("rma_number").notNull(),
-    customerId: integer("customer_id").notNull().references(() => customers.id),
-    description: text("description").notNull(),
-    deliveryDate: timestamp("delivery_date").notNull(),
-    sku: text("sku"),
-    model: text("model"),
-    serialNumber: text("serial_number"),
-    supplier: text("supplier"),
-    supplierRmaId: text("supplier_rma_id"),
-    status: text("status").notNull().default("created"),
-    shipmentDate: timestamp("shipment_date"),
-    createdAt: timestamp("created_at").notNull().defaultNow(),
-    updatedAt: timestamp("updated_at").notNull().defaultNow(),
-    createdBy: integer("created_by").notNull().references(() => users.id),
-});
-// Tilføj rmaStatusHistory tabel
-export const rmaStatusHistory = pgTable("rma_status_history", {
-    id: serial("id").primaryKey(),
-    rmaId: integer("rma_id").notNull().references(() => rma.id),
-    status: text("status").notNull(),
-    comment: text("comment").notNull(),
-    createdAt: timestamp("created_at").notNull().defaultNow(),
-    createdBy: integer("created_by").notNull().references(() => users.id),
-    createdByName: text("created_by_name"),
-});
-// Definer relations for RMA tabellen
-export const rmaRelations = relations(rma, ({ one }) => ({
-    customer: one(customers, {
-        fields: [rma.customerId],
-        references: [customers.id],
-    }),
-    createdByUser: one(users, {
-        fields: [rma.createdBy],
-        references: [users.id],
-    }),
-}));
-// Definer relations for rmaStatusHistory tabellen
-export const rmaStatusHistoryRelations = relations(rmaStatusHistory, ({ one }) => ({
-    rma: one(rma, {
-        fields: [rmaStatusHistory.rmaId],
-        references: [rma.id],
-    }),
-    createdByUser: one(users, {
-        fields: [rmaStatusHistory.createdBy],
-        references: [users.id],
-    }),
-}));
 // RMA insert schema
 export const insertRMASchema = createInsertSchema(rma).pick({
     customerId: true,
@@ -449,18 +426,42 @@ export const insertInternalCaseSchema = createInsertSchema(internalCases).pick({
 }).extend({
     message: z.string().min(1, "Besked er påkrævet"),
 });
-// Tilføj nye tabeller for statustyper og prioritetstyper
-export const caseStatusTypes = pgTable("case_status_types", {
-    id: serial("id").primaryKey(),
-    key: text("key").notNull().unique(),
-    label: text("label").notNull(),
-    createdAt: timestamp("created_at").notNull().defaultNow(),
-    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+// Export the Customer schema for validation
+export const CustomerSchema = z.object({
+    id: z.number(),
+    name: z.string(),
+    email: z.string().nullable(),
+    phone: z.string(),
+    address: z.string().nullable(),
+    city: z.string().nullable(),
+    postalCode: z.string().nullable(),
+    createdAt: z.date(),
+    updatedAt: z.date(),
+    notes: z.string().nullable(),
 });
-export const priorityTypes = pgTable("priority_types", {
-    id: serial("id").primaryKey(),
-    key: text("key").notNull().unique(),
-    label: text("label").notNull(),
-    createdAt: timestamp("created_at").notNull().defaultNow(),
-    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+// Export the RMA schema for validation
+export const RMASchema = z.object({
+    id: z.number(),
+    rmaNumber: z.string(),
+    customerId: z.number(),
+    description: z.string(),
+    deliveryDate: z.date(),
+    sku: z.string().nullable(),
+    model: z.string().nullable(),
+    serialNumber: z.string().nullable(),
+    supplier: z.string().nullable(),
+    supplierRmaId: z.string().nullable(),
+    shipmentDate: z.date().nullable(),
+    status: z.string(),
+    createdAt: z.date(),
+    updatedAt: z.date(),
+    createdBy: z.number(),
+});
+// Export the User schema for validation
+export const UserSchema = z.object({
+    id: z.number(),
+    username: z.string(),
+    name: z.string(),
+    isWorker: z.boolean(),
+    isAdmin: z.boolean(),
 });

@@ -1,7 +1,7 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Case } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
-import { useAuth } from "@/hooks/auth";
+import { useAuth } from "@/context/auth-context";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -14,7 +14,8 @@ import { ArrowLeft, Clock, FileText, MessageSquare } from "lucide-react";
 import { useLocation } from "wouter";
 
 interface InternalCaseProps {
-  params: { id: string }
+  params?: { id: string };
+  id?: string;
 }
 
 interface CaseWithCustomer extends Case {
@@ -22,7 +23,8 @@ interface CaseWithCustomer extends Case {
   customerPhone: string;
 }
 
-export default function InternalCase({ params }: InternalCaseProps) {
+export default function InternalCase({ params, id }: InternalCaseProps) {
+  const caseId = id || params?.id;
   const { toast } = useToast();
   const { user } = useAuth();
   const [, setLocation] = useLocation();
@@ -30,23 +32,24 @@ export default function InternalCase({ params }: InternalCaseProps) {
   const [timeSpent, setTimeSpent] = useState("");
 
   const { data: case_, isLoading } = useQuery<CaseWithCustomer>({
-    queryKey: ["/api/cases", params.id],
+    queryKey: ["/api/cases", caseId],
     queryFn: async () => {
-      const res = await apiRequest("GET", `/api/cases/${params.id}`);
+      const res = await apiRequest("GET", `/api/cases/${caseId}`);
       return res.json();
     },
+    enabled: !!caseId,
   });
 
   const addInternalNoteMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiRequest("POST", `/api/cases/${params.id}/internal-notes`, {
+      const res = await apiRequest("POST", `/api/cases/${caseId}/internal-notes`, {
         note: internalNote,
         timeSpent: parseInt(timeSpent) || 0
       });
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/cases", params.id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/cases", caseId] });
       toast({
         title: "Note tilføjet",
         description: "Den interne note er blevet gemt",
@@ -62,6 +65,10 @@ export default function InternalCase({ params }: InternalCaseProps) {
       });
     },
   });
+
+  if (!caseId) {
+    return <div>Ingen sag ID angivet</div>;
+  }
 
   if (isLoading || !case_) {
     return <div>Indlæser...</div>;

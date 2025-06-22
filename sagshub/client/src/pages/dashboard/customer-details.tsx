@@ -9,17 +9,20 @@ import { apiRequest } from "@/lib/queryClient";
 import { useLocation } from "wouter";
 
 interface CustomerDetailsProps {
-  id: string;
+  params?: { id: string };
+  id?: string;
 }
 
-export default function CustomerDetailsPage({ id }: CustomerDetailsProps) {
+export default function CustomerDetailsPage({ params, id }: CustomerDetailsProps) {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
-  const customerId = parseInt(id || "");
+  const customerId = parseInt((id || params?.id) || "");
 
-  console.log("CustomerDetailsPage - Raw ID:", id);
+  console.log("CustomerDetailsPage - Raw ID:", id || params?.id);
   console.log("CustomerDetailsPage - Parsed ID:", customerId);
   console.log("CustomerDetailsPage - isNaN check:", isNaN(customerId));
+  console.log("CustomerDetailsPage - typeof id:", typeof (id || params?.id));
+  console.log("CustomerDetailsPage - window.location.href:", window.location.href);
 
   const { data: customer, isLoading, error } = useQuery<Customer>({
     queryKey: ["customer", customerId],

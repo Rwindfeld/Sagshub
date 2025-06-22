@@ -12,8 +12,8 @@ import { sql } from "drizzle-orm";
 import { findAndTranslateEnglishCases } from './translate';
 import express from "express";
 import { Router } from "express";
-import { casesRouter } from "./src/routes/cases";
-import { registerRoutes as registerAdditionalRoutes } from "./routes/index";
+import { registerRoutes as registerAdditionalRoutes } from "./routes/index.js";
+import { broadcastLiveUpdate } from "./index.js";
 
 const updateStatusSchema = z.object({
   status: z.enum([
@@ -110,7 +110,7 @@ export async function registerRoutes(app: Express): Promise<void> {
   setupAuth(app);
   
   // Register cases router
-  app.use("/api/cases", casesRouter);
+  // Cases routes are now included in registerAdditionalRoutes
   
   // Register additional routes (including user management)
   await registerAdditionalRoutes(app);
@@ -531,6 +531,12 @@ export async function registerRoutes(app: Express): Promise<void> {
         return res.status(404).json({ error: "Sagen blev ikke fundet" });
       }
 
+      // Broadcast live update for case update
+      broadcastLiveUpdate('case_updated', {
+        case: updatedCase,
+        message: `Sag opdateret: ${updatedCase.caseNumber} - ${updatedCase.title}`
+      });
+
       console.log(`[DEBUG] Case updated successfully (numeric route):`, JSON.stringify(updatedCase, null, 2));
       res.json(updatedCase);
     } catch (error) {
@@ -555,8 +561,8 @@ export async function registerRoutes(app: Express): Promise<void> {
         console.log(`Case not found for idOrNumber: ${idOrNumber}`);
         return res.status(404).json({ error: "Sagen blev ikke fundet" });
       }
-      if (!req.user.isWorker && case_.customerId !== req.user.id) {
-        console.log(`User ${req.user.id} not authorized to view case ${case_.id}`);
+      if (!req.user.isWorker && case_.customerId !== req.user.customerId) {
+        console.log(`User ${req.user.id} (customerId: ${req.user.customerId}) not authorized to view case ${case_.id} (customerId: ${case_.customerId})`);
         return res.status(403).json({ error: "Ingen adgang til denne sag" });
       }
       console.log(`Successfully fetched case:`, case_);
@@ -616,6 +622,13 @@ export async function registerRoutes(app: Express): Promise<void> {
       };
 
       const case_ = await storage.createCase(caseDataToCreate);
+      
+      // Broadcast live update for case creation
+      broadcastLiveUpdate('case_created', {
+        case: case_,
+        message: `Ny sag oprettet: ${case_.caseNumber} - ${case_.title}`
+      });
+      
       res.status(201).json(case_);
     } catch (error) {
       console.error("Error creating case:", error);
@@ -650,6 +663,12 @@ export async function registerRoutes(app: Express): Promise<void> {
         return res.status(404).json({ error: "Sagen blev ikke fundet" });
       }
 
+      // Broadcast live update for case update
+      broadcastLiveUpdate('case_updated', {
+        case: updatedCase,
+        message: `Sag opdateret: ${updatedCase.caseNumber} - ${updatedCase.title}`
+      });
+
       console.log(`[DEBUG] Case updated successfully:`, JSON.stringify(updatedCase, null, 2));
       res.json(updatedCase);
     } catch (error) {
@@ -681,6 +700,34 @@ export async function registerRoutes(app: Express): Promise<void> {
         updatedByName_
       );
 
+      console.log(`[DEBUG] About to broadcast live update for case ${caseId} status change to ${status}`);
+      
+      // Oversæt status til dansk
+      const statusMap: Record<string, string> = {
+        'created': 'Oprettet',
+        'in_progress': 'Under behandling',
+        'offer_created': 'Tilbud oprettet',
+        'waiting_customer': 'Afventer kunde',
+        'offer_accepted': 'Tilbud godkendt',
+        'offer_rejected': 'Tilbud afvist',
+        'waiting_parts': 'Afventer dele',
+        'preparing_delivery': 'Klargøring til levering',
+        'ready_for_pickup': 'Klar til afhentning',
+        'completed': 'Afsluttet'
+      };
+      const danishStatus = statusMap[status] || status;
+      
+      // Broadcast live update
+      broadcastLiveUpdate('case_status_updated', {
+        case: updatedCase,
+        newStatus: status,
+        comment: comment,
+        updatedBy: updatedByName_,
+        message: `${updatedByName_} har opdateret ${updatedCase.caseNumber || caseId} til ${danishStatus}`
+      });
+
+      console.log(`[DEBUG] Live update broadcast completed for case ${caseId}`);
+
       res.json(updatedCase);
     } catch (error) {
       console.error("Error updating case status:", error);
@@ -692,8 +739,23 @@ export async function registerRoutes(app: Express): Promise<void> {
   app.get("/api/cases/:id/status-history", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
 
-    const history = await storage.getCaseStatusHistory(parseInt(req.params.id));
-    res.json(history);
+    try {
+      const caseId = parseInt(req.params.id);
+      
+      // For non-workers, check if the case belongs to the customer
+      if (!req.user.isWorker) {
+        const case_ = await storage.getCase(caseId);
+        if (!case_ || case_.customerId !== req.user.customerId) {
+          return res.status(403).json({ error: "Ingen adgang til denne sag" });
+        }
+      }
+
+      const history = await storage.getCaseStatusHistory(caseId);
+      res.json(history);
+    } catch (error) {
+      console.error("Error fetching case status history:", error);
+      res.status(500).json({ error: "Der opstod en fejl ved hentning af sagens historik" });
+    }
   });
 
   // RMA routes
@@ -1003,12 +1065,22 @@ export async function registerRoutes(app: Express): Promise<void> {
 
   // Endpoint til at hente bestillinger for en specifik sag
   app.get("/api/cases/:id/orders", async (req, res) => {
-    if (!req.isAuthenticated() || !req.user.isWorker) return res.sendStatus(403);
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    
     try {
       const caseId = parseInt(req.params.id);
       if (isNaN(caseId)) {
         return res.status(400).json({ error: "Ugyldigt sags-ID" });
       }
+
+      // For non-workers, check if the case belongs to the customer
+      if (!req.user.isWorker) {
+        const case_ = await storage.getCase(caseId);
+        if (!case_ || case_.customerId !== req.user.customerId) {
+          return res.status(403).json({ error: "Ingen adgang til denne sag" });
+        }
+      }
+
       const orders = await storage.getOrdersByCaseId(caseId);
       res.json(orders);
     } catch (error) {

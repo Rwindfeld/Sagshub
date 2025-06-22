@@ -1,0 +1,7 @@
+Jeg har gennemført omfattende performance tests af systemet med stigende datamængder. 
+Jeg startede med 100 sager og kunder, og gradvist øgede jeg til 200, 500, 1000, 2000 og til sidst 3000 sager.
+Det var vigtigt for mig at sikre at systemet forblev responsivt og stabilt, selv med store datamængder. 
+Jeg har fokuseret særligt på reaktionstiderne ved almindelige operationer som at åbne sagslisten, søge efter kunder, og opdatere sager.
+Resultaterne har været meget positive - systemet har opretholdt hurtige reaktionstider på tværs af alle testniveauer. 
+Dette skyldes bl.a. vores optimerede database-indeksering og effektive SQL-forespørgsler. 
+Selv med 3000 sager i systemet, oplever brugerne ingen merkbar forsinkelse i deres daglige arbejde. 

@@ -35,43 +35,29 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { Input } from "@/components/ui/input";
 
 type RMA = {
   id: number;
   rmaNumber: string;
   customerName: string;
   customerId: number | null;
-  customerPhone?: string;
-  customerEmail?: string;
-  customerAddress?: string;
-  customerCity?: string;
-  customerPostalCode?: string;
-  customerNotes?: string;
-  customerCreatedAt?: string;
   invoiceNumber: string | null;
   faultDate: string;
   faultDescription: string;
-  description?: string;
   modelName: string;
-  model?: string;
   sku: string | null;
   serialNumber: string | null;
   supplier: string | null;
   status: string;
   createdAt: string;
   updatedAt: string;
-  deliveryDate?: string;
-  createdByName?: string;
-  supplierRmaId?: string;
 };
 
 const statusTranslations = {
   [RMAStatus.CREATED]: 'Oprettet',
-  [RMAStatus.SENT_TO_SUPPLIER]: 'Sendt til leverandør',
+  [RMAStatus.IN_PROGRESS]: 'Under behandling',
   [RMAStatus.WAITING_SUPPLIER]: 'Afventer leverandør',
-  [RMAStatus.RECEIVED_FROM_SUPPLIER]: 'Modtaget fra leverandør',
-  [RMAStatus.READY_FOR_PICKUP]: 'Klar til afhentning',
+  [RMAStatus.READY_FOR_RETURN]: 'Klar til returnering',
   [RMAStatus.COMPLETED]: 'Afsluttet',
   [RMAStatus.REJECTED]: 'Afvist'
 } as const;
@@ -85,7 +71,6 @@ export default function RMADetails() {
   const [isStatusDialogOpen, setIsStatusDialogOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
   const [isEditing, setIsEditing] = useState(false);
-  const [updatedByName, setUpdatedByName] = useState("");
 
   const { data: rma, isLoading } = useQuery<RMA>({
     queryKey: ["/api/rma", id],
@@ -96,7 +81,7 @@ export default function RMADetails() {
   });
 
   const updateStatusMutation = useMutation({
-    mutationFn: async (data: { status: string; comment: string; updatedByName?: string }) => {
+    mutationFn: async (data: { status: string; comment: string }) => {
       const res = await apiRequest("PATCH", `/api/rma/${id}/status`, data);
       return res.json();
     },
@@ -110,7 +95,6 @@ export default function RMADetails() {
       setIsStatusDialogOpen(false);
       setSelectedStatus("");
       setStatusComment("");
-      setUpdatedByName("");
     },
     onError: (error: Error) => {
       toast({
@@ -178,16 +162,6 @@ export default function RMADetails() {
     );
   }
 
-  // Sikre at alle nødvendige felter findes i RMA objektet
-  console.log("RMA data received:", rma);
-  const rmaData = {
-    ...rma,
-    faultDescription: rma.faultDescription || rma.description || "",
-    modelName: rma.modelName || rma.model || "",
-    customerName: rma.customerName || `Kunde #${rma.customerId}`,
-    deliveryDate: rma.deliveryDate || rma.createdAt
-  };
-
   const handleUpdate = (data: any) => {
     // Konverter faultDate til ISO string hvis det er en Date
     if (data.faultDate instanceof Date) {
@@ -209,7 +183,7 @@ export default function RMADetails() {
               <ArrowLeft className="mr-2 h-4 w-4" />
               Tilbage til RMA oversigt
             </Button>
-            <h1 className="text-2xl font-bold">RMA Detaljer - {rmaData.rmaNumber}</h1>
+            <h1 className="text-2xl font-bold">RMA Detaljer - {rma.rmaNumber}</h1>
           </div>
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => setIsEditing(true)}>
@@ -234,7 +208,7 @@ export default function RMADetails() {
                       <SelectTrigger>
                         <SelectValue placeholder="Vælg ny status" />
                       </SelectTrigger>
-                      <SelectContent className="max-h-[200px] overflow-y-auto">
+                      <SelectContent>
                         {Object.entries(statusTranslations).map(([value, label]) => (
                           <SelectItem key={value} value={value}>
                             {label}
@@ -251,21 +225,12 @@ export default function RMADetails() {
                       placeholder="Tilføj en kommentar..."
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label>Medarbejder (valgfrit)</Label>
-                    <Input
-                      value={updatedByName}
-                      onChange={(e) => setUpdatedByName(e.target.value)}
-                      placeholder="Lad være tom for at bruge dit navn..."
-                    />
-                  </div>
                   <Button
                     onClick={() => {
                       if (selectedStatus && statusComment) {
                         updateStatusMutation.mutate({
                           status: selectedStatus,
                           comment: statusComment,
-                          updatedByName: updatedByName || undefined,
                         });
                       }
                     }}
@@ -289,38 +254,31 @@ export default function RMADetails() {
                 <div>
                   <dt className="font-medium">Kundenavn</dt>
                   <dd>
-                    {rmaData.customerId ? (
+                    {rma.customerId ? (
                       <button
                         className="text-primary hover:underline"
                         onClick={() => setSelectedCustomer({
-                          id: rmaData.customerId,
-                          name: rmaData.customerName,
-                          phone: rmaData.customerPhone,
-                          email: rmaData.customerEmail,
-                          address: rmaData.customerAddress, 
-                          city: rmaData.customerCity,
-                          postalCode: rmaData.customerPostalCode,
-                          notes: rmaData.customerNotes,
-                          createdAt: rmaData.customerCreatedAt
+                          id: rma.customerId,
+                          name: rma.customerName
                         })}
                       >
-                        {rmaData.customerName}
+                        {rma.customerName}
                       </button>
                     ) : (
-                      rmaData.customerName
+                      rma.customerName
                     )}
                   </dd>
                 </div>
-                {rmaData.customerId && (
+                {rma.customerId && (
                   <div>
                     <dt className="font-medium">Kunde ID</dt>
-                    <dd>{rmaData.customerId}</dd>
+                    <dd>{rma.customerId}</dd>
                   </div>
                 )}
-                {rmaData.invoiceNumber && (
+                {rma.invoiceNumber && (
                   <div>
                     <dt className="font-medium">Fakturanummer</dt>
-                    <dd>{rmaData.invoiceNumber}</dd>
+                    <dd>{rma.invoiceNumber}</dd>
                   </div>
                 )}
               </dl>
@@ -334,35 +292,25 @@ export default function RMADetails() {
             <CardContent>
               <dl className="space-y-2">
                 <div>
-                  <dt className="font-medium">RMA ID</dt>
-                  <dd>{rmaData.rmaNumber}</dd>
-                </div>
-                <div>
                   <dt className="font-medium">Model</dt>
-                  <dd>{rmaData.modelName}</dd>
+                  <dd>{rma.modelName}</dd>
                 </div>
-                {rmaData.serialNumber && (
+                {rma.serialNumber && (
                   <div>
                     <dt className="font-medium">Serienummer</dt>
-                    <dd>{rmaData.serialNumber}</dd>
+                    <dd>{rma.serialNumber}</dd>
                   </div>
                 )}
-                {rmaData.sku && (
+                {rma.sku && (
                   <div>
                     <dt className="font-medium">SKU</dt>
-                    <dd>{rmaData.sku}</dd>
+                    <dd>{rma.sku}</dd>
                   </div>
                 )}
-                {rmaData.supplier && (
+                {rma.supplier && (
                   <div>
                     <dt className="font-medium">Leverandør</dt>
-                    <dd>{rmaData.supplier}</dd>
-                  </div>
-                )}
-                {rmaData.supplierRmaId && (
-                  <div>
-                    <dt className="font-medium">Leverandør RMA Nummer</dt>
-                    <dd>{rmaData.supplierRmaId}</dd>
+                    <dd>{rma.supplier}</dd>
                   </div>
                 )}
               </dl>
@@ -374,15 +322,17 @@ export default function RMADetails() {
               <CardTitle>Fejlbeskrivelse</CardTitle>
             </CardHeader>
             <CardContent>
-              <p>{rmaData.faultDescription}</p>
+              <p>{rma.faultDescription}</p>
               <p className="text-sm text-muted-foreground mt-2">
-                Fejlmeldt: {format(new Date(rmaData.faultDate || rmaData.deliveryDate || rmaData.createdAt), "d. MMMM yyyy", { locale: da })}
+                Fejlmeldt: {(() => {
+                  if (!rma.faultDate) return 'Dato ikke angivet';
+                  try {
+                    return format(new Date(rma.faultDate), "d. MMMM yyyy", { locale: da });
+                  } catch {
+                    return 'Ugyldig dato';
+                  }
+                })()}
               </p>
-              {rmaData.createdByName && (
-                <p className="text-sm text-muted-foreground mt-1">
-                  Oprettet af: {rmaData.createdByName}
-                </p>
-              )}
             </CardContent>
           </Card>
 
@@ -399,7 +349,13 @@ export default function RMADetails() {
                     </p>
                     <p>{record.comment}</p>
                     <p className="text-sm text-muted-foreground">
-                      {format(new Date(record.createdAt), "d. MMMM yyyy HH:mm", { locale: da })} - {record.createdByName || record.createdBy}
+                      {(() => {
+                        try {
+                          return format(new Date(record.createdAt), "d. MMMM yyyy HH:mm", { locale: da });
+                        } catch {
+                          return 'Ugyldig dato';
+                        }
+                      })()} - {record.createdBy}
                     </p>
                   </div>
                 ))}
@@ -426,8 +382,8 @@ export default function RMADetails() {
               onSubmit={handleUpdate}
               isLoading={updateRMAMutation.isPending}
               defaultValues={{
-                ...rmaData,
-                faultDate: new Date(rmaData.faultDate || rmaData.deliveryDate || rmaData.createdAt)
+                ...rma,
+                faultDate: rma.faultDate ? new Date(rma.faultDate) : new Date()
               }}
               isEditing={true}
             />

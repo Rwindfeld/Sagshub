@@ -28,7 +28,6 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "
 interface Customer {
   id: number;
   name: string;
-  phone?: string;
 }
 
 interface RMAFormProps {
@@ -42,32 +41,30 @@ export function RMAForm({ onSubmit, isLoading, defaultValues, isEditing }: RMAFo
   const form = useForm({
     defaultValues: defaultValues || {
       customerId: null as number | null,
-      customerSearch: "",
-      description: "",
-      deliveryDate: new Date(),
+      customerName: "",
+      invoiceNumber: "",
+      faultDate: new Date(),
+      faultDescription: "",
+      rmaNumber: "",
       sku: "",
-      model: "",
+      modelName: "",
       serialNumber: "",
       supplier: "",
-      supplierRmaId: "",
-      shipmentDate: null as Date | null,
     },
   });
 
   // Fetch customers for search
-  const { data: customersData } = useQuery({
+  const { data: customers = [] } = useQuery<Customer[]>({
     queryKey: ["/api/customers"],
     queryFn: async () => {
-      const res = await apiRequest("GET", "/api/customers?pageSize=100");
+      const res = await apiRequest("GET", "/api/customers");
       return res.json();
     },
   });
 
-  const customers = customersData?.items || [];
-
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 overflow-y-auto max-h-[calc(100vh-120px)]">
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
         {/* Kundedata sektion */}
         <Card>
           <CardHeader>
@@ -76,62 +73,82 @@ export function RMAForm({ onSubmit, isLoading, defaultValues, isEditing }: RMAFo
           <CardContent className="space-y-4">
             <FormField
               control={form.control}
-              name="customerSearch"
+              name="customerName"
+              rules={{ required: "Kundenavn er påkrævet" }}
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Kunde</FormLabel>
+                  <FormLabel>Kundenavn</FormLabel>
                   <FormControl>
                     <div className="relative">
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <FormControl>
-                            <Button
-                              variant="outline"
-                              role="combobox"
-                              className={cn(
-                                "w-full justify-between",
-                                !field.value && "text-muted-foreground"
-                              )}
-                            >
-                              {field.value ? field.value : "Vælg kunde..."}
-                              <CalendarIcon className="ml-2 h-4 w-4 opacity-50" />
-                            </Button>
-                          </FormControl>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-full p-0">
-                          <Command>
-                            <CommandInput placeholder="Søg efter kunde..." />
-                            <CommandEmpty>Ingen kunder fundet.</CommandEmpty>
-                            <CommandGroup>
-                              {customers.map((customer) => (
-                                <CommandItem
-                                  key={customer.id}
-                                  onSelect={() => {
-                                    form.setValue("customerSearch", customer.name);
-                                    form.setValue("customerId", customer.id);
-                                  }}
-                                >
-                                  {customer.name} - {customer.phone}
-                                </CommandItem>
-                              ))}
-                            </CommandGroup>
-                          </Command>
-                        </PopoverContent>
-                      </Popover>
+                      <Input
+                        placeholder="Indtast eller søg efter kunde..."
+                        {...field}
+                        onChange={(e) => {
+                          field.onChange(e);
+                          // Hvis brugeren skriver manuelt, nulstil customerId
+                          if (form.getValues("customerId")) {
+                            form.setValue("customerId", null);
+                          }
+                        }}
+                      />
+                      <div className="absolute inset-x-0 top-full mt-1">
+                        {field.value && customers.length > 0 && !form.getValues("customerId") && !isEditing && (
+                          <Card>
+                            <CardContent className="p-0">
+                              <Command>
+                                <CommandInput placeholder="Søg efter kunde..." />
+                                <CommandEmpty>Ingen kunder fundet.</CommandEmpty>
+                                <CommandGroup>
+                                  {customers
+                                    .filter((customer) =>
+                                      customer.name.toLowerCase().includes(field.value.toLowerCase())
+                                    )
+                                    .map((customer) => (
+                                      <CommandItem
+                                        key={customer.id}
+                                        value={customer.name}
+                                        onSelect={() => {
+                                          form.setValue("customerName", customer.name);
+                                          form.setValue("customerId", customer.id);
+                                        }}
+                                      >
+                                        {customer.name}
+                                      </CommandItem>
+                                    ))}
+                                </CommandGroup>
+                              </Command>
+                            </CardContent>
+                          </Card>
+                        )}
+                      </div>
                     </div>
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
-            
+
             <FormField
               control={form.control}
-              name="deliveryDate"
-              rules={{ required: "Indleveringsdato er påkrævet" }}
+              name="invoiceNumber"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Fakturanummer</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="faultDate"
+              rules={{ required: "Fejlmeldingsdato er påkrævet" }}
               render={({ field }) => (
                 <FormItem className="flex flex-col">
-                  <FormLabel>Indleveringsdato</FormLabel>
+                  <FormLabel>Fejlmeldt dato</FormLabel>
                   <Popover>
                     <PopoverTrigger asChild>
                       <FormControl>
@@ -170,7 +187,7 @@ export function RMAForm({ onSubmit, isLoading, defaultValues, isEditing }: RMAFo
 
             <FormField
               control={form.control}
-              name="description"
+              name="faultDescription"
               rules={{ required: "Fejlbeskrivelse er påkrævet" }}
               render={({ field }) => (
                 <FormItem>
@@ -191,12 +208,28 @@ export function RMAForm({ onSubmit, isLoading, defaultValues, isEditing }: RMAFo
             <CardTitle>Produktdata</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            {!isEditing && (
+              <FormField
+                control={form.control}
+                name="rmaNumber"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>RMA Nummer</FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+
             <FormField
               control={form.control}
               name="sku"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Varenummer/SKU</FormLabel>
+                  <FormLabel>SKU/Varenummer</FormLabel>
                   <FormControl>
                     <Input {...field} />
                   </FormControl>
@@ -207,10 +240,11 @@ export function RMAForm({ onSubmit, isLoading, defaultValues, isEditing }: RMAFo
 
             <FormField
               control={form.control}
-              name="model"
+              name="modelName"
+              rules={{ required: "Modelnavn er påkrævet" }}
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Model</FormLabel>
+                  <FormLabel>Modelnavn</FormLabel>
                   <FormControl>
                     <Input {...field} />
                   </FormControl>
@@ -246,70 +280,12 @@ export function RMAForm({ onSubmit, isLoading, defaultValues, isEditing }: RMAFo
                 </FormItem>
               )}
             />
-            
-            <FormField
-              control={form.control}
-              name="supplierRmaId"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Leverandør RMA Nummer</FormLabel>
-                  <FormControl>
-                    <Input {...field} placeholder="Indtast leverandørens RMA nummer" />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            
-            <FormField
-              control={form.control}
-              name="shipmentDate"
-              render={({ field }) => (
-                <FormItem className="flex flex-col">
-                  <FormLabel>Afsendelsesdato</FormLabel>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <FormControl>
-                        <Button
-                          variant={"outline"}
-                          className={cn(
-                            "w-full pl-3 text-left font-normal",
-                            !field.value && "text-muted-foreground"
-                          )}
-                        >
-                          {field.value ? (
-                            format(field.value, "d. MMMM yyyy", { locale: da })
-                          ) : (
-                            <span>Vælg en dato</span>
-                          )}
-                          <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                        </Button>
-                      </FormControl>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={field.value}
-                        onSelect={field.onChange}
-                        disabled={(date) =>
-                          date < new Date("1900-01-01")
-                        }
-                        initialFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
           </CardContent>
         </Card>
 
-        <div className="sticky bottom-0 pt-4 pb-2 bg-white">
-          <Button type="submit" className="w-full" disabled={isLoading}>
-            {isLoading ? "Gemmer..." : isEditing ? "Gem ændringer" : "Opret RMA"}
-          </Button>
-        </div>
+        <Button type="submit" className="w-full" disabled={isLoading}>
+          {isLoading ? "Gemmer..." : isEditing ? "Gem ændringer" : "Opret RMA"}
+        </Button>
       </form>
     </Form>
   );

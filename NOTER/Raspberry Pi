@@ -1,0 +1,52 @@
+Tekniske Forbedringer
+Server Hardware:
+• Raspberry Pi 4B+ med Ubuntu Server LTS
+• Dedikeret server-IP: 192.168.110.100
+• 8GB RAM, SSD storage for performance
+
+Containerized Services:
+• Docker containers for nem deployment og skalering
+• Nginx reverse proxy for HTTPS og load balancing
+• Redis cache for hurtigere sessions og data
+• PostgreSQL optimeret til server-brug
+
+Sikkerhed:
+• HTTPS/SSL certificater (Let's Encrypt)
+• UFW Firewall kun åbne nødvendige porte
+• Fail2Ban beskyttelse mod brute-force
+• Lokalt domain: sagshub.tjdata.local
+
+
+Monitoring & Backup
+Automatisk backup:
+• Database backup hver nat til Synology NAS
+• Log rotation og arkivering
+• System snapshots
+
+Monitoring:
+• Grafana dashboard for system health
+• Prometheus metrics for performance tracking
+• Email alerts ved problemer
+
+Fordele ved Raspberry Pi Setup
+Performance:
+• Centraliseret database = hurtigere queries
+• Redis caching = raskere respons
+• Nginx = bedre håndtering af concurrent users
+
+Pålidelighed:
+• 24/7 uptime (ikke afhængig af en arbejdscomputer)
+• Automatisk backup og recovery
+• Monitoring og alerts
+
+Skalering:
+• Nem tilføjelse af nye brugere/computere
+• Mobile adgang via tablets
+• Mulighed for ekstern adgang (VPN)
+
+Vedligeholdelse:
+• Centraliseret opdateringer
+• Remote administration via SSH
+• Container-baseret deployment = nem fejlfinding
+
+Dette setup ville gøre SagsHub til en professionel enterprise-løsning mens den stadig kører på budget-venlig hardware!

@@ -83,30 +83,33 @@ export const OrderList: FC<OrderListProps> = ({
               </TableCell>
             </TableRow>
           ) : (
-            orders.map((order) => (
-              <TableRow key={order.id}>
-                <TableCell className="font-medium">#{order.orderNumber}</TableCell>
-                <TableCell>{order.customerName}</TableCell>
-                <TableCell>
-                  {order.orderDate
-                    ? format(new Date(order.orderDate), "d. MMM yyyy", { locale: da })
-                    : "-"}
-                </TableCell>
-                <TableCell>
-                  {order.model || "Ikke angivet"}
-                </TableCell>
-                <TableCell>{order.supplier}</TableCell>
-                <TableCell>{order.price || "-"}</TableCell>
-                <TableCell>{getStatusBadge(order.status)}</TableCell>
-                <TableCell className="text-right">
-                  <Link to={`/worker/orders/${order.id}`}>
-                    <Button variant="ghost" size="icon">
-                      <PenSquare className="h-4 w-4" />
-                    </Button>
-                  </Link>
-                </TableCell>
-              </TableRow>
-            ))
+            orders.map((order, index) => {
+              const isEven = index % 2 === 0;
+              return (
+                <TableRow key={order.id} className={isEven ? 'bg-white' : 'bg-gray-50'}>
+                  <TableCell className="font-medium">#{order.orderNumber}</TableCell>
+                  <TableCell>{order.customerName}</TableCell>
+                  <TableCell>
+                    {order.orderDate
+                      ? format(new Date(order.orderDate), "d. MMM yyyy", { locale: da })
+                      : "-"}
+                  </TableCell>
+                  <TableCell>
+                    {order.model || "Ikke angivet"}
+                  </TableCell>
+                  <TableCell>{order.supplier}</TableCell>
+                  <TableCell>{order.price || "-"}</TableCell>
+                  <TableCell>{getStatusBadge(order.status)}</TableCell>
+                  <TableCell className="text-right">
+                    <Link to={`/worker/orders/${order.id}`}>
+                      <Button variant="ghost" size="icon">
+                        <PenSquare className="h-4 w-4" />
+                      </Button>
+                    </Link>
+                  </TableCell>
+                </TableRow>
+              );
+            })
           )}
         </TableBody>
       </Table>

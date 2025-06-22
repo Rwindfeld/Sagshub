@@ -1,0 +1,14 @@
+Systemet er designet til at kunne køre på en Raspberry Pi eller lignende minicomputer, hvilket giver flere fordele. 
+For det første er det meget energieffektivt - en Raspberry Pi bruger kun omkring 5-10 watt, hvilket er ideelt til 24/7 drift.
+
+For at integrere hardware som barcodescannere, har jeg planlagt at bruge MQTT protokollen. 
+MQTT er perfekt til IoT-enheder fordi den er letvægt og kan håndtere mange samtidige forbindelser. 
+Scanneren vil kommunikere med serveren gennem en MQTT broker (Mosquitto), som kører på samme Raspberry Pi.
+
+Netværksmæssigt har jeg tænkt det sådan her: 
+Vi opretter et dedikeret VLAN til IoT-enhederne, med statisk IP-adressering. 
+Dette giver os god kontrol over hvilke enheder der kan kommunikere med systemet. 
+Firewall-reglerne er konfigureret til kun at tillade kommunikation fra de autoriserede enheder.
+
+Software-mæssigt kører vi Node.js på Raspberry Pi'en, som håndterer både webserver og MQTT broker. Når en scanner læser en stregkode, sender den data gennem MQTT, som så bliver modtaget af Node.js serveren og gemt i databasen. 
+Frontend'en opdateres i realtid via WebSocket forbindelser 

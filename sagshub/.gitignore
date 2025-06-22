@@ -1,0 +1,11 @@
+# Dependencies 
+node_modules/  
+dist/  
+build/  
+*.exe  
+*.dll  
+*.zip  
+*.tar.gz  
+*.pdf  
+venv/  
+.DS_Store 

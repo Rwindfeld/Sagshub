@@ -34,7 +34,7 @@ import { da } from "date-fns/locale";
 import { useToast } from "@/components/ui/use-toast";
 import CustomerSearchInput from "./customer-search-input";
 import { useCustomerQuery } from "@/queries/customers";
-import { useAuth } from "@/hooks/auth";
+import { useAuth } from "@/context/auth-context";
 import { useCreateOrderMutation, useUpdateOrderMutation, useOrderQuery } from "@/queries/orders";
 import { useLocation } from "wouter";
 import { useCasesQuery } from "@/queries/cases";

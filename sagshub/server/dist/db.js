@@ -1,18 +1,15 @@
 import pg from 'pg';
 import { drizzle } from 'drizzle-orm/node-postgres';
-import * as schema from "../shared/schema.js";
 const { Pool } = pg;
-// Hardcoded database URL for lokal udvikling
+// Database configuration using environment variables
 const connectionConfig = {
-    user: 'postgres',
-    host: 'localhost',
-    database: 'sagshub',
-    password: 'wa2657321',
-    port: 5432,
+    user: process.env.DB_USER || 'postgres',
+    host: process.env.DB_HOST || 'localhost',
+    database: process.env.DB_NAME || 'sagshub',
+    password: process.env.DB_PASSWORD || 'wa2657321',
+    port: parseInt(process.env.DB_PORT || '5432'),
 };
-// Opret en standard PostgreSQL pool med direkte forbindelse
+// Create a standard PostgreSQL pool with direct connection
 export const pool = new Pool(connectionConfig);
-// Opret en drizzle instans
+// Create a drizzle instance without schema
 export const db = drizzle(pool);
-// Eksporter schema
-export { schema };

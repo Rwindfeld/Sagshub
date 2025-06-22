@@ -1,11 +1,16 @@
 import express from "express";
 import { registerRoutes } from "./routes.js";
+import { setupVite, log } from "./vite.js";
+import { db, pool } from "./db.js";
 import kill from "kill-port";
+import { users } from "../shared/schema.js";
 import "dotenv/config";
 import cors from "cors";
-import { logger } from "./logger.js";
-import { setupAuth } from './auth.js';
-import { createServer } from 'http';
+import { createServer } from "http";
+import fs from "fs";
+import path from "path";
+import os from "os";
+import { WebSocketServer } from "ws";
 // Set required environment variables if not set
 if (!process.env.SESSION_SECRET) {
     process.env.SESSION_SECRET = 'your-secret-key-here';
@@ -17,9 +22,12 @@ const app = express();
 // Body parser middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-// CORS configuration
+// CORS configuration - tillad alle origins for netværksadgang
 app.use(cors({
-    origin: ["http://localhost:5173", "http://localhost:3002"],
+    origin: function (origin, callback) {
+        // Tillad alle origins (for .exe distribution)
+        callback(null, true);
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
@@ -35,42 +43,163 @@ app.use((req, res, next) => {
         console.log(`[${new Date().toLocaleTimeString()}] ${req.method} ${req.path} ${res.statusCode} - ${duration}ms`);
     });
 });
+// Create HTTP server
+const server = createServer(app);
+const PORT = process.env.PORT || 3000;
+// WebSocket server for live aktivitet
+const wss = new WebSocketServer({ server });
+const clients = new Set();
+wss.on('connection', (ws, req) => {
+    console.log('New WebSocket connection established');
+    clients.add(ws);
+    // Send initial connection confirmation
+    ws.send(JSON.stringify({
+        type: 'connection',
+        message: 'Live aktivitet forbundet'
+    }));
+    ws.on('close', () => {
+        console.log('WebSocket connection closed');
+        clients.delete(ws);
+    });
+    ws.on('error', (error) => {
+        console.error('WebSocket error:', error);
+        clients.delete(ws);
+    });
+});
+// Funktion til at broadcaste live opdateringer
+export function broadcastLiveUpdate(type, data) {
+    const message = JSON.stringify({
+        type,
+        data,
+        timestamp: new Date().toISOString()
+    });
+    clients.forEach((client) => {
+        if (client.readyState === 1) { // WebSocket.OPEN
+            try {
+                client.send(message);
+            }
+            catch (error) {
+                console.error('Error sending WebSocket message:', error);
+                clients.delete(client);
+            }
+        }
+        else {
+            clients.delete(client);
+        }
+    });
+    console.log(`Live update broadcasted: ${type} to ${clients.size} clients`);
+}
 // Start server
 const startServer = async () => {
     try {
-        // Forsøg at dræbe eventuelle processer på port 3001
+        log("Starting server initialization...");
+        // Test database connection
         try {
-            await kill(3001);
-            console.log('Killed any existing process on port 3001');
+            await pool.query('SELECT 1');
+            log("Raw database connection successful");
         }
         catch (error) {
-            console.log('No process was running on port 3001');
+            console.error("Database connection failed:", error);
+            process.exit(1);
         }
-        // Setup authentication
-        setupAuth(app);
-        // Register routes directly on app
+        // Test drizzle connection
+        try {
+            await db.select().from(users).limit(1);
+            log("Database connection successful");
+        }
+        catch (error) {
+            console.error("Drizzle database connection failed:", error);
+            process.exit(1);
+        }
+        // Register API routes
         await registerRoutes(app);
-        // Create HTTP server
-        const server = createServer(app);
-        // Get port from environment or use fallback
-        const PORT = 3001;
-        // Handle server errors
-        server.on('error', (error) => {
-            if (error.code === 'EADDRINUSE') {
-                console.error(`Port ${PORT} is already in use. Please try a different port.`);
-                process.exit(1);
-            }
-            else {
-                console.error('Server error:', error);
-                process.exit(1);
-            }
-        });
-        // Start listening
-        server.listen(PORT, () => {
-            console.log(`Server is running on port ${PORT}`);
-            console.log(`API URL: http://localhost:${PORT}`);
-            console.log('Frontend URL: http://localhost:5173');
-        });
+        log("Routes registered successfully");
+        // Serve static files in production or if client/dist exists
+        const clientDistPath = path.join(process.cwd(), 'client', 'dist');
+        const isProduction = process.env.NODE_ENV === 'production';
+        log(`Configured to use port: ${PORT}`);
+        if (fs.existsSync(clientDistPath) || isProduction) {
+            log("Setting up static file serving for built frontend...");
+            // Serve static files from client/dist
+            app.use(express.static(clientDistPath));
+            // Catch-all handler for SPA routing
+            app.get('*', (req, res) => {
+                // Skip API routes
+                if (req.path.startsWith('/api')) {
+                    return res.status(404).json({ error: 'API endpoint not found' });
+                }
+                const indexPath = path.join(clientDistPath, 'index.html');
+                if (fs.existsSync(indexPath)) {
+                    res.sendFile(indexPath);
+                }
+                else {
+                    res.status(404).send('Frontend not built. Run: cd client && npm run build');
+                }
+            });
+            log("Static file serving configured");
+        }
+        else {
+            log("Setting up API server (frontend forventes at køre på port 5173)...");
+            await setupVite(app, server);
+            log("Vite server forventes at køre på port 5173. Vi starter ikke Vite middleware her.");
+            log("API server setup complete");
+        }
+        // Forsøg at dræbe eventuelle processer på port
+        try {
+            await kill(Number(PORT));
+            log(`Killed any existing process on port ${PORT}`);
+        }
+        catch (error) {
+            // Ignore error if no process was running
+        }
+        let attempts = 0;
+        const maxAttempts = 3;
+        const tryStartServer = () => {
+            attempts++;
+            log(`Starting server attempt ${attempts}/${maxAttempts}`);
+            // Handle server errors
+            server.on('error', (error) => {
+                if (error.code === 'EADDRINUSE') {
+                    console.error(`Port ${PORT} is already in use.`);
+                    if (attempts < maxAttempts) {
+                        console.log(`Retrying in 2 seconds... (attempt ${attempts + 1}/${maxAttempts})`);
+                        setTimeout(() => {
+                            server.close();
+                            tryStartServer();
+                        }, 2000);
+                    }
+                    else {
+                        console.error('Max attempts reached. Exiting.');
+                        process.exit(1);
+                    }
+                }
+                else {
+                    console.error('Server error:', error);
+                    process.exit(1);
+                }
+            });
+            // Start listening på alle interfaces (0.0.0.0) for netværksadgang
+            server.listen(PORT, '0.0.0.0', () => {
+                log(`Server successfully listening on port ${PORT}`);
+                console.log(`\n========================================`);
+                console.log(`🚀 SagsHub Server Running!`);
+                console.log(`========================================`);
+                console.log(`Local access: http://localhost:${PORT}`);
+                console.log(`WebSocket: ws://localhost:${PORT}`);
+                // Vis netværks IP for eksterne forbindelser
+                const networkInterfaces = os.networkInterfaces();
+                for (const name of Object.keys(networkInterfaces)) {
+                    for (const net of networkInterfaces[name]) {
+                        if (net.family === 'IPv4' && !net.internal) {
+                            console.log(`Network access: http://${net.address}:${PORT}`);
+                            console.log(`Network WebSocket: ws://${net.address}:${PORT}`);
+                        }
+                    }
+                }
+                console.log(`========================================\n`);
+            });
+        };
+        tryStartServer();
     }
     catch (error) {
         console.error('Failed to start server:', error);
@@ -80,14 +209,9 @@ const startServer = async () => {
 startServer();
 // Error handling middleware
 app.use((err, req, res, next) => {
-    logger.error('Unhandled error:', err);
+    console.error('Unhandled error:', err);
     res.status(500).json({
         error: 'Der opstod en fejl på serveren',
         message: process.env.NODE_ENV === 'development' ? err.message : undefined
     });
-});
-const port = process.env.PORT || 3002;
-const server = createServer(app);
-server.listen(port, () => {
-    logger.info(`Server kører på port ${port}`);
 });

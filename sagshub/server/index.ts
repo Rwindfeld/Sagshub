@@ -19,6 +19,7 @@ import { createServer } from "http";
 import fs from "fs";
 import path from "path";
 import os from "os";
+import { WebSocketServer } from "ws";
 
 // Set required environment variables if not set
 if (!process.env.SESSION_SECRET) {
@@ -61,6 +62,62 @@ app.use((req, res, next) => {
 // Create HTTP server
 const server = createServer(app);
 const PORT = process.env.PORT || 3000;
+
+// WebSocket server for live aktivitet
+const wss = new WebSocketServer({ server });
+const clients = new Set();
+
+wss.on('connection', (ws, req) => {
+  console.log('New WebSocket connection established');
+  clients.add(ws);
+  
+  // Send initial connection confirmation
+  ws.send(JSON.stringify({
+    type: 'connection',
+    message: 'Live aktivitet forbundet'
+  }));
+  
+  ws.on('close', () => {
+    console.log('WebSocket connection closed');
+    clients.delete(ws);
+  });
+  
+  ws.on('error', (error) => {
+    console.error('WebSocket error:', error);
+    clients.delete(ws);
+  });
+});
+
+// Funktion til at broadcaste live opdateringer
+export function broadcastLiveUpdate(type: string, data: any) {
+  const payload: any = {
+    type,
+    data,
+    timestamp: new Date().toISOString()
+  };
+  
+  // Hvis data har et message felt, hiv det op på top-niveau
+  if (data && data.message) {
+    payload.message = data.message;
+  }
+  
+  const message = JSON.stringify(payload);
+  
+  clients.forEach((client) => {
+    if (client.readyState === 1) { // WebSocket.OPEN
+      try {
+        client.send(message);
+      } catch (error) {
+        console.error('Error sending WebSocket message:', error);
+        clients.delete(client);
+      }
+    } else {
+      clients.delete(client);
+    }
+  });
+  
+  console.log(`Live update broadcasted: ${type} to ${clients.size} clients`);
+}
 
 // Start server
 const startServer = async () => {
@@ -166,6 +223,7 @@ const startServer = async () => {
         console.log(`🚀 SagsHub Server Running!`);
         console.log(`========================================`);
         console.log(`Local access: http://localhost:${PORT}`);
+        console.log(`WebSocket: ws://localhost:${PORT}`);
         
         // Vis netværks IP for eksterne forbindelser
         const networkInterfaces = os.networkInterfaces();
@@ -173,6 +231,7 @@ const startServer = async () => {
           for (const net of networkInterfaces[name]) {
             if (net.family === 'IPv4' && !net.internal) {
               console.log(`Network access: http://${net.address}:${PORT}`);
+              console.log(`Network WebSocket: ws://${net.address}:${PORT}`);
             }
           }
         }

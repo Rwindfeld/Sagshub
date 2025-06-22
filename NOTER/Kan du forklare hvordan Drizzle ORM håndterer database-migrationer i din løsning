@@ -1,0 +1,120 @@
+
+Lad mig forklare, hvordan jeg håndterer database-migrationer med Drizzle ORM i SagsHub. Det er en kritisk del af udviklingsprocessen, da det sikrer, at vores database-struktur altid er synkroniseret med vores kode.
+1. Schema Definition
+"Først definerer jeg mine database-tabeller i TypeScript. Dette giver mig type-sikkerhed og dokumentation i samme fil:
+typescript
+Apply
+// schema.ts
+import { pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
+export const cases = pgTable('cases', {
+  id: serial('id').primaryKey(),
+  caseNumber: text('case_number').notNull().unique(),
+  title: text('title').notNull(),
+  status: text('status').notNull(),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow()
+});
+2. Migration Generering
+"Når jeg laver ændringer i mit schema, genererer Drizzle automatisk migrations-filer. Dette gør jeg ved at køre:
+bash
+Apply
+Run
+npm run drizzle-kit generate
+Dette skaber en ny fil i drizzle mappen, f.eks.:
+sql
+Apply
+-- 0000_initial.sql
+CREATE TABLE cases (
+  id SERIAL PRIMARY KEY,
+  case_number TEXT NOT NULL UNIQUE,
+  title TEXT NOT NULL,
+  status TEXT NOT NULL,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+3. Migration Håndtering
+"Jeg har implementeret en migrations-håndterer, der kører når applikationen starter:
+typescript
+Apply
+// migrations.ts
+import { drizzle } from 'drizzle-orm/node-postgres';
+import { migrate } from 'drizzle-orm/node-postgres/migrator';
+async function runMigrations() {
+  const db = drizzle(pool);
+  
+  console.log('Kører migrations...');
+  await migrate(db, { migrationsFolder: './drizzle' });
+  console.log('Migrations færdige!');
+}
+4. Versionering
+"Jeg holder styr på migrations i min package.json:
+json
+Apply
+{
+  "scripts": {
+    "generate": "drizzle-kit generate",
+    "migrate": "ts-node src/db/migrate.ts"
+  }
+}
+5. Praktisk Eksempel
+"Lad mig give et konkret eksempel på en migration:
+	1. Jeg tilføjer et nyt felt til cases-tabellen:
+	export const cases = pgTable('cases', {
+	  // ... eksisterende felter ...
+	  priority: text('priority').default('normal')
+	});
+	2. Drizzle genererer en ny migration:
+	-- 0001_add_priority.sql
+	ALTER TABLE cases ADD COLUMN priority TEXT DEFAULT 'normal';
+	3. Når applikationen deployes, kører migrationen automatisk
+6. Fordele ved denne Tilgang
+"Denne tilgang giver mig flere fordele:
+	• Versionering - jeg kan se historikken af database-ændringer
+	• Automatisering - migrations kører automatisk ved deployment
+	• Sikkerhed - ingen manuelle database-ændringer
+	• Reproducibility - samme database-struktur på alle miljøer
+	• Type-sikkerhed - TypeScript integration
+7. Best Practices
+"Jeg følger disse best practices:
+	• Generer migrations for hver ændring
+	• Test migrations lokalt før deployment
+	• Hold migrations atomiske (én ændring per migration)
+	• Brug transactions for sikkerhed
+	• Backup database før migrations
+Dette system sikrer, at vores database altid er i sync med vores kode, og at vi kan spore ændringer over tid. Det er særligt vigtigt i et team-miljø, hvor flere udviklere arbejder på samme projekt. 
+
+Mundtlig modelbesvarelse:
+"Drizzle ORM er det værktøj, jeg bruger til at styre min database direkte via TypeScript-kode. Det betyder, at jeg kan opbygge og vedligeholde hele min PostgreSQL-struktur i kode – og generere migrationer automatisk."
+
+
+🧱 Hvad er en migration?
+• En migration er en versioneret ændring i databasen – fx tilføjelse af en tabel, ændring af et felt eller fjernelse af en kolonne.
+• Det fungerer som en historik over ændringer, så databasen altid matcher kodebasen – og man kan gå frem og tilbage i versioner.
+
+
+🛠️ Sådan bruger jeg det i Sagshub:
+• Jeg definerer mine tabeller i schema.ts med typer som:
+ts
+CopyEdit
+export const customers = pgTable("customers", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  phone: varchar("phone", { length: 20 }).notNull(),
+  email: text("email"),
+});
+
+• Når jeg ændrer noget, kører jeg drizzle-kit generate → det laver en ny migrationfil i migrations/.
+• Jeg kører drizzle-kit push for at anvende ændringerne til databasen.
+• Alle felter og relationer er type-sikre, fordi det hele er skrevet i TypeScript.
+
+
+🧠 Fordele:
+• Type-sikkerhed = færre fejl og bedre udviklingsflow
+• Kode og database er altid i synk
+• Automatisk versionering og rollback
+• Nemt at forstå historik og ændringer i databasen
+
+
+🔁 Eksempel:
+"Da jeg tilføjede feltet model til RMA-tabellen, tilføjede jeg det i schema’et og genererede en migration. Den blev kørt på databasen, og jeg kunne nemt versionere ændringen uden at risikere at miste data."
+

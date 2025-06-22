@@ -1,0 +1,94 @@
+
+Sikkerhed har været et fokuspunkt gennem hele projektet, og jeg har dokumenteret det grundigt i rapporten (se fx afsnit 2.3 og Bilag 16-18).
+Jeg bruger HTTPS til krypteret kommunikation, og scrypt til at hashe alle adgangskoder, så de aldrig gemmes i klartekst. Sessioner håndteres sikkert med express-session, hvor session-cookies er sat op med sikkerhedsflag og automatisk timeout.
+Jeg har også beskrevet, hvordan CORS-konfigurationen kan tilpasses, så systemet både kan køre sikkert i produktion og åbnes op for hele det lokale netværk, fx ved deployment på Raspberry Pi.
+Derudover har jeg implementeret rate limiting, input-validering og rollebaseret adgangskontrol, så kun autoriserede brugere kan tilgå bestemte funktioner og data.
+ 
+Lad mig gennemgå de vigtigste sikkerhedsforanstaltninger, jeg har implementeret i SagsHub. Sikkerhed er en af mine højeste prioriteter, da vi håndterer følsomme kundedata.
+ 
+1. Kommunikationssikkerhed
+"Først og fremmest har jeg sikret, at al kommunikation mellem klient og server er krypteret gennem HTTPS. Dette betyder, at selv hvis nogen skulle fange vores netværkstrafik, kan de ikke læse indholdet. Det er som at sende et brev i en sikker kuvert i stedet for et åbent postkort.
+ 
+2. Password Håndtering
+"Jeg har valgt at bruge Scrypt til password hashing, som er en af de mest sikre algoritmer i dag. Det fungerer ved at blande passwordet med et tilfældigt salt og derefter køre det gennem en beregningsintensiv proces. Selv hvis databasen skulle blive kompromitteret, er det praktisk talt umuligt at gendanne de oprindelige passwords.
+ 
+3. Session Sikkerhed
+"Jeg har implementeret et robust session-system. Når en bruger logger ind, får de en sikker session-cookie, der kun kan læses af serveren. Denne cookie er beskyttet mod flere typer angreb gennem forskellige sikkerhedsflag. Det er som at have et særligt adgangskort, der kun virker i bestemte situationer.
+ 
+4. Rate Limiting
+"Jeg har implementeret rate limiting for at forhindre brute force angreb. Dette betyder, at hvis nogen prøver at logge ind for mange gange, bliver de midlertidigt blokeret. Det er som at have en dør, der låser sig efter for mange forkerte nøgleforsøg.
+ 
+5. Database Sikkerhed
+"På database-niveau har jeg implementeret flere lag af sikkerhed. Jeg bruger Drizzle ORM, som automatisk håndterer SQL injection ved at parametrisere alle queries. Det er som at have en tolk, der oversætter vores forespørgsler på en sikker måde.
+ 
+6. XSS Beskyttelse
+"Jeg har implementeret beskyttelse mod Cross-Site Scripting (XSS) angreb. Dette sikrer, at skadelig kode ikke kan indsprøjtes i vores applikation. Det er som at have en filter, der fjerner farlige indhold før det når brugeren.
+ 
+7. CORS Politik
+"Jeg har implementeret en strikt CORS politik, der kontrollerer, hvilke domæner der må kommunikere med vores API. Det er som at have en vagt, der tjekker legitimationspapirer før nogen får adgang.
+ 
+8. Logging og Monitoring
+"Jeg logger alle sikkerhedsrelevante begivenheder. Dette giver mig mulighed for at opdage og reagere på potentielle sikkerhedsproblemer. Det er som at have et overvågningskamera, der registrerer alle vigtige begivenheder.
+ 
+9. Backup Strategi
+"Jeg har implementeret automatiske backups af databasen. Dette sikrer, at vi altid kan gendanne data, hvis der skulle opstå problemer. Det er som at have en sikkerhedskopi af alle vigtige dokumenter.
+ 
+10. Environment Variabler
+"Jeg bruger environment variabler til at håndtere sensitive data som database passwords og API nøgler. Dette sikrer, at disse oplysninger ikke ender i vores kodebase. Det er som at have en sikker boks til vigtige nøgler.
+ 
+11. Security Headers
+"Jeg har implementeret sikkerheds-headers, der giver ekstra beskyttelse mod forskellige typer angreb. Dette er som at have flere lag af sikkerhed, der arbejder sammen for at beskytte vores applikation.
+ 
+Disse foranstaltninger giver mig:
+- Forsvar i dybden - flere lag af sikkerhed
+- Krypteret kommunikation - beskyttet data i transit
+- **Sikker datalagring** - beskyttet data at rest
+- **Angrebsbeskyttelse** - mod almindelige web-angreb
+- **Overvågning** - mulighed for at opdage problemer
+ 
+Det er vigtigt at forstå, at sikkerhed er en kontinuerlig proces. Jeg holder mig opdateret med de nyeste sikkerhedsbedste praksis og opdaterer systemet løbende. Det er ikke nok at implementere sikkerhed én gang - det kræver konstant opmærksomhed og vedligeholdelse."
+
+Mundtlig modelbesvarelse:
+"Sikkerhed har været en grundsten i udviklingen af Sagshub – både ift. netværk, brugeradgang og datahåndtering. Systemet behandler kundedata, og derfor er det vigtigt at tænke i både forebyggelse, adgangskontrol og fejlhåndtering."
+
+🔐 Sikkerhed i netværksarkitekturen:
+• CORS-konfiguration:
+ → Man kan bruge cors middleware til at begrænse hvilke domæner der må kommunikere med min backend.
+• HTTPS for deployment (planlagt):
+ → I fremtidig drift ville jeg aktivere TLS-certifikater for at kryptere al trafik.
+
+👤 Brugeradgang:
+• Adgangskoder:
+ → Hashes med scrypt før de gemmes i databasen. Ingen passwords i klartekst.
+• Sessions:
+ → Bruger express-session med krypterede cookies og timeout-funktion. Sessions gemmes på server, ikke i browser.
+• Adgangsroller:
+ → Systemet bruger rollebaseret adgangskontrol – kunder kan fx kun se egne sager.
+
+
+🛡️ Fejlhåndtering og logging:
+• Fejl logges struktureret og returneres med relevante HTTP-koder (401, 403, 500 osv.)
+• Fejlbeskeder til brugeren er brugervenlige, men ikke for detaljerede, så systemet ikke lækker interne fejl.
+• Rate limiting og bruteforce-beskyttelse (planlagt):
+ → Begrænset antal loginforsøg per minut pr. IP for at undgå angreb.
+
+
+📋 Datahåndtering:
+• Inputvalidering:
+ → Alle input valideres server-side via delte TypeScript-typer og evt. Zod (kan udvides).
+• Debounced søgning og pagination:
+ → Beskytter backend mod overload ved at undgå unødvendige kald.
+
+CORS-konfigurationen i udviklingsfasen er midlertidigt sat til Access-Control-Allow-Origin: *, hvilket gør det muligt at tilgå systemet fra alle domæner. Det har jeg gjort bevidst, fordi jeg ønskede at teste Sagshub på flere enheder – fx PC, tablet og mobil – uden at støde på browserrestriktioner."
+"For at gøre det muligt at bruge Sagshub internt i et lokalnetværk, har jeg opsat serveren til at lytte på netværkets IP-adresse – fx http://192.168.1.100:5174. Det gør det muligt for alle enheder på samme netværk at tilgå systemet direkte uden cloud-deployment."
+"På sigt – i en produktionsopsætning – vil jeg erstatte den åbne CORS med en whitelist af domæner/IP’er, og aktivere HTTPS for krypteret forbindelse
+
+
+📡 Fremtidig sikkerhedsudvidelse (planlagt):
+• HTTPS / TLS
+• JWT eller OAuth ved API-integration
+• Firewall-regler og adgangslogning ved Raspberry Pi deployment
+• CSRF-beskyttelse ved formulardata
+• Sentry eller lignende til runtime error overvågning
+
+

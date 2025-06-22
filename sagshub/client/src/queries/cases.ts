@@ -63,14 +63,10 @@ export function useCasesQuery(options: UseCasesQueryOptions = {}) {
     retry: 3,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
     staleTime: 0, // Always fetch fresh data
-    cacheTime: 0, // Don't cache
+    gcTime: 0, // Don't cache
     refetchOnWindowFocus: true,
     refetchOnMount: true,
     refetchOnReconnect: true,
-    useErrorBoundary: true,
-    onError: (error) => {
-      console.error('Error fetching cases:', error);
-    },
   });
 }
 
@@ -89,14 +85,10 @@ export function useCaseStatusHistory(caseId: number) {
     retry: 3,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
     staleTime: 1000 * 60, // 1 minute
-    cacheTime: 1000 * 60 * 5, // 5 minutes
+    gcTime: 1000 * 60 * 5, // 5 minutes
     refetchOnWindowFocus: true,
     refetchOnMount: true,
     refetchOnReconnect: true,
-    useErrorBoundary: true,
-    onError: (error) => {
-      console.error('Error fetching case status history:', error);
-    },
   });
 }
 
@@ -114,14 +106,10 @@ export function useTotalCasesQuery() {
     retry: 3,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
     staleTime: 1000 * 60, // 1 minute
-    cacheTime: 1000 * 60 * 5, // 5 minutes
+    gcTime: 1000 * 60 * 5, // 5 minutes
     refetchOnWindowFocus: true,
     refetchOnMount: true,
     refetchOnReconnect: true,
-    useErrorBoundary: true,
-    onError: (error) => {
-      console.error('Error fetching total cases:', error);
-    },
   });
 }
 
@@ -137,14 +125,10 @@ export function useStatusCountsQuery() {
     retry: 3,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
     staleTime: 1000 * 60, // 1 minute
-    cacheTime: 1000 * 60 * 5, // 5 minutes
+    gcTime: 1000 * 60 * 5, // 5 minutes
     refetchOnWindowFocus: true,
     refetchOnMount: true,
     refetchOnReconnect: true,
-    useErrorBoundary: true,
-    onError: (error) => {
-      console.error('Error fetching status counts:', error);
-    },
   });
 }
 
@@ -160,14 +144,10 @@ export function useAlarmCasesQuery() {
     retry: 3,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
     staleTime: 1000 * 60, // 1 minute
-    cacheTime: 1000 * 60 * 5, // 5 minutes
+    gcTime: 1000 * 60 * 5, // 5 minutes
     refetchOnWindowFocus: true,
     refetchOnMount: true,
     refetchOnReconnect: true,
-    useErrorBoundary: true,
-    onError: (error) => {
-      console.error('Error fetching alarm cases:', error);
-    },
   });
 }
 
@@ -187,10 +167,6 @@ export function useUpdateCaseMutation() {
     },
     retry: 3,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
-    useErrorBoundary: true,
-    onError: (error) => {
-      console.error('Error updating case:', error);
-    },
   });
 }
 
@@ -210,9 +186,5 @@ export function useUpdateCaseStatusMutation() {
     },
     retry: 3,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
-    useErrorBoundary: true,
-    onError: (error) => {
-      console.error('Error updating case status:', error);
-    },
   });
 } 

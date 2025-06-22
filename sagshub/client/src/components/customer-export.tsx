@@ -4,7 +4,7 @@ import { useDebounce } from "@/hooks/use-debounce";
 import { Check, User, Download, Printer } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { type Customer } from "@shared/schema";
-import { useAuth } from "@/hooks/auth";
+import { useAuth } from "@/context/auth-context";
 import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";

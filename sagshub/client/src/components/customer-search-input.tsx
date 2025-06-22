@@ -5,7 +5,7 @@ import { useDebounce } from "@/hooks/use-debounce";
 import { Check, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { type Customer } from "@shared/schema";
-import { useAuth } from "@/hooks/auth";
+import { useAuth } from "@/context/auth-context";
 import { useToast } from "@/components/ui/use-toast";
 
 interface CustomerSearchInputProps {
@@ -88,7 +88,8 @@ const CustomerSearchInput: FC<CustomerSearchInputProps> = ({
                   <div
                     key={customer.id}
                     className="cursor-pointer p-2 hover:bg-gray-100"
-                    onClick={() => {
+                    onMouseDown={(e) => {
+                      e.preventDefault();
                       onSelect(customer.id);
                       setSearch(customer.name);
                       setIsSearching(false);

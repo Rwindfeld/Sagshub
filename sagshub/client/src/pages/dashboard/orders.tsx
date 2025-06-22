@@ -1,4 +1,4 @@
-import { useAuth } from "@/hooks/use-auth";
+import { useAuth } from "@/context/auth-context";
 import { useState } from "react";
 import { MenuLayout } from "@/components/menu-layout";
 import { Input } from "@/components/ui/input";

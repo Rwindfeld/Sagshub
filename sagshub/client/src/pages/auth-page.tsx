@@ -11,7 +11,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { toast } from "@/components/ui/use-toast";
+import { toast } from "@/hooks/use-toast";
 
 export default function AuthPage() {
   const { customerLoginMutation, workerLoginMutation, user } = useAuth();
@@ -152,14 +152,7 @@ export default function AuthPage() {
                     className="w-full"
                     disabled={workerLoginMutation.isPending}
                   >
-                    {workerLoginMutation.isPending ? (
-                      <>
-                        <span className="loading loading-spinner loading-sm mr-2"></span>
-                        Logger ind...
-                      </>
-                    ) : (
-                      "Log ind"
-                    )}
+                    {workerLoginMutation.isPending ? "Logger ind..." : "Log ind"}
                   </Button>
                 </form>
               </CardContent>

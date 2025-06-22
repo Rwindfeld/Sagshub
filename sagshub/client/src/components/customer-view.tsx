@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Customer, Case } from "@shared/schema";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { CustomerForm } from "./customer-form";
 import { Button } from "@/components/ui/button";
 import { CaseList } from "@/components/case-list";
 import { useToast } from "@/hooks/use-toast";
-import { Edit2 } from "lucide-react";
+import { Edit2, Save, X } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { da } from "date-fns/locale";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -64,9 +64,83 @@ const statusColors: Record<string, string> = {
 export function CustomerView({ customer: initialCustomer, onClose }: CustomerViewProps) {
   const { toast } = useToast();
   const [isEditing, setIsEditing] = useState(false);
+  const [editData, setEditData] = useState({
+    email: initialCustomer.email || '',
+    address: initialCustomer.address || '',
+    city: initialCustomer.city || '',
+    postalCode: initialCustomer.postalCode || '',
+    notes: initialCustomer.notes || ''
+  });
   const [, setLocation] = useLocation();
 
-  console.log("Initial customer data:", initialCustomer);
+  // Hent fresh customer data
+  const { data: freshCustomer, isLoading: customerLoading } = useQuery<Customer>({
+    queryKey: ["customer", initialCustomer.id],
+    queryFn: async () => {
+      const res = await fetch(`/api/customers/${initialCustomer.id}`);
+      if (!res.ok) {
+        throw new Error("Kunne ikke hente kunde data");
+      }
+      return res.json();
+    },
+    initialData: initialCustomer,
+  });
+
+  // Brug fresh data hvis tilgængelig, ellers initial data
+  const currentCustomer = freshCustomer || initialCustomer;
+
+  // Opdater edit data når fresh data kommer ind
+  useEffect(() => {
+    if (freshCustomer && !isEditing) {
+      setEditData({
+        email: freshCustomer.email || '',
+        address: freshCustomer.address || '',
+        city: freshCustomer.city || '',
+        postalCode: freshCustomer.postalCode || '',
+        notes: freshCustomer.notes || ''
+      });
+    }
+  }, [freshCustomer, isEditing]);
+
+  console.log("Current customer data:", currentCustomer);
+
+  const handleRMAClick = (rmaId: number) => {
+    console.log("CustomerView: RMA clicked with ID:", rmaId);
+    const targetUrl = `/worker/rma/${rmaId}`;
+    console.log("CustomerView: Navigating to:", targetUrl);
+    
+    // Luk customer sidebar først
+    onClose();
+    
+    // Derefter naviger til RMA detaljer med lille delay
+    setTimeout(() => {
+      setLocation(targetUrl);
+    }, 50);
+  };
+
+  // Reset edit data when starting to edit
+  const handleStartEdit = () => {
+    setEditData({
+      email: currentCustomer.email || '',
+      address: currentCustomer.address || '',
+      city: currentCustomer.city || '',
+      postalCode: currentCustomer.postalCode || '',
+      notes: currentCustomer.notes || ''
+    });
+    setIsEditing(true);
+  };
+
+  // Cancel editing
+  const handleCancelEdit = () => {
+    setIsEditing(false);
+    setEditData({
+      email: currentCustomer.email || '',
+      address: currentCustomer.address || '',
+      city: currentCustomer.city || '',
+      postalCode: currentCustomer.postalCode || '',
+      notes: currentCustomer.notes || ''
+    });
+  };
 
   // Mutation til at opdatere kunde
   const updateCustomerMutation = useMutation({
@@ -88,7 +162,11 @@ export function CustomerView({ customer: initialCustomer, onClose }: CustomerVie
       return res.json();
     },
     onSuccess: () => {
+      // Invalidate alle relevante queries
       queryClient.invalidateQueries({ queryKey: ["/api/customers"] });
+      queryClient.invalidateQueries({ queryKey: ["customer", initialCustomer.id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/customers", initialCustomer.id] });
+      
       setIsEditing(false);
       toast({
         title: "Succes",
@@ -103,6 +181,11 @@ export function CustomerView({ customer: initialCustomer, onClose }: CustomerVie
       });
     },
   });
+
+  // Save changes
+  const handleSaveChanges = () => {
+    updateCustomerMutation.mutate(editData);
+  };
 
   // Hent kundens sager
   const { data: cases, isLoading: casesLoading } = useQuery<Case[]>({
@@ -143,8 +226,8 @@ export function CustomerView({ customer: initialCustomer, onClose }: CustomerVie
   });
 
   // Format the date safely
-  const formattedDate = initialCustomer.createdAt ? format(
-    typeof initialCustomer.createdAt === 'string' ? parseISO(initialCustomer.createdAt) : initialCustomer.createdAt,
+  const formattedDate = currentCustomer.createdAt ? format(
+    typeof currentCustomer.createdAt === 'string' ? parseISO(currentCustomer.createdAt) : currentCustomer.createdAt,
     "d. MMM yyyy",
     { locale: da }
   ) : '-';
@@ -155,7 +238,7 @@ export function CustomerView({ customer: initialCustomer, onClose }: CustomerVie
         <SheetHeader className="space-y-2">
           <div className="flex justify-between items-center">
             <SheetTitle>
-              Kunde #{formatCustomerId(initialCustomer.id)}
+              Kunde #{formatCustomerId(currentCustomer.id)}
             </SheetTitle>
           </div>
         </SheetHeader>
@@ -165,35 +248,60 @@ export function CustomerView({ customer: initialCustomer, onClose }: CustomerVie
           <div>
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-semibold">Kundeoplysninger</h3>
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={() => setIsEditing(!isEditing)}
-              >
-                <Edit2 className="h-4 w-4 mr-2" />
-                {isEditing ? "Annuller" : "Rediger"}
-              </Button>
+              <div className="flex gap-2">
+                {!isEditing ? (
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={handleStartEdit}
+                  >
+                    <Edit2 className="h-4 w-4 mr-2" />
+                    Rediger
+                  </Button>
+                ) : (
+                  <>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={handleCancelEdit}
+                      disabled={updateCustomerMutation.isPending}
+                    >
+                      <X className="h-4 w-4 mr-2" />
+                      Annuller
+                    </Button>
+                    <Button 
+                      size="sm"
+                      onClick={handleSaveChanges}
+                      disabled={updateCustomerMutation.isPending}
+                    >
+                      <Save className="h-4 w-4 mr-2" />
+                      {updateCustomerMutation.isPending ? 'Gemmer...' : 'Gem'}
+                    </Button>
+                  </>
+                )}
+              </div>
             </div>
 
             <dl className="grid grid-cols-2 gap-4">
               <div>
                 <dt className="text-sm font-medium text-muted-foreground">Navn</dt>
-                <dd className="text-sm">{initialCustomer.name}</dd>
+                <dd className="text-sm">{currentCustomer.name}</dd>
               </div>
               <div>
                 <dt className="text-sm font-medium text-muted-foreground">Telefon</dt>
-                <dd className="text-sm">{initialCustomer.phone}</dd>
+                <dd className="text-sm">{currentCustomer.phone}</dd>
               </div>
               <div>
                 <dt className="text-sm font-medium text-muted-foreground">Email</dt>
                 <dd className="text-sm">
                   {isEditing ? (
                     <Input 
-                      defaultValue={initialCustomer.email || ''} 
-                      onChange={(e) => updateCustomerMutation.mutate({ email: e.target.value })}
+                      value={editData.email} 
+                      onChange={(e) => setEditData({...editData, email: e.target.value})}
+                      placeholder="Indtast email"
                     />
                   ) : (
-                    initialCustomer.email || '-'
+                    currentCustomer.email || '-'
                   )}
                 </dd>
               </div>
@@ -202,11 +310,12 @@ export function CustomerView({ customer: initialCustomer, onClose }: CustomerVie
                 <dd className="text-sm">
                   {isEditing ? (
                     <Input 
-                      defaultValue={initialCustomer.address || ''} 
-                      onChange={(e) => updateCustomerMutation.mutate({ address: e.target.value })}
+                      value={editData.address} 
+                      onChange={(e) => setEditData({...editData, address: e.target.value})}
+                      placeholder="Indtast adresse"
                     />
                   ) : (
-                    initialCustomer.address || '-'
+                    currentCustomer.address || '-'
                   )}
                 </dd>
               </div>
@@ -215,11 +324,12 @@ export function CustomerView({ customer: initialCustomer, onClose }: CustomerVie
                 <dd className="text-sm">
                   {isEditing ? (
                     <Input 
-                      defaultValue={initialCustomer.city || ''} 
-                      onChange={(e) => updateCustomerMutation.mutate({ city: e.target.value })}
+                      value={editData.city} 
+                      onChange={(e) => setEditData({...editData, city: e.target.value})}
+                      placeholder="Indtast by"
                     />
                   ) : (
-                    initialCustomer.city || '-'
+                    currentCustomer.city || '-'
                   )}
                 </dd>
               </div>
@@ -228,11 +338,12 @@ export function CustomerView({ customer: initialCustomer, onClose }: CustomerVie
                 <dd className="text-sm">
                   {isEditing ? (
                     <Input 
-                      defaultValue={initialCustomer.postalCode || ''} 
-                      onChange={(e) => updateCustomerMutation.mutate({ postalCode: e.target.value })}
+                      value={editData.postalCode} 
+                      onChange={(e) => setEditData({...editData, postalCode: e.target.value})}
+                      placeholder="Indtast postnummer"
                     />
                   ) : (
-                    initialCustomer.postalCode || '-'
+                    currentCustomer.postalCode || '-'
                   )}
                 </dd>
               </div>
@@ -241,11 +352,13 @@ export function CustomerView({ customer: initialCustomer, onClose }: CustomerVie
                 <dd className="text-sm">
                   {isEditing ? (
                     <Textarea 
-                      defaultValue={initialCustomer.notes || ''} 
-                      onChange={(e) => updateCustomerMutation.mutate({ notes: e.target.value })}
+                      value={editData.notes} 
+                      onChange={(e) => setEditData({...editData, notes: e.target.value})}
+                      placeholder="Indtast noter"
+                      rows={3}
                     />
                   ) : (
-                    initialCustomer.notes || '-'
+                    currentCustomer.notes || '-'
                   )}
                 </dd>
               </div>
@@ -288,7 +401,7 @@ export function CustomerView({ customer: initialCustomer, onClose }: CustomerVie
                       <TableRow
                         key={rma.id}
                         className="cursor-pointer hover:bg-muted/50"
-                        onClick={() => setLocation(`/worker/rma/${rma.id}`)}
+                        onClick={() => handleRMAClick(rma.id)}
                       >
                         <TableCell>{rma.rmaNumber}</TableCell>
                         <TableCell className="whitespace-normal truncate max-w-[200px]">
@@ -297,7 +410,15 @@ export function CustomerView({ customer: initialCustomer, onClose }: CustomerVie
                         <TableCell>{rma.model || '-'}</TableCell>
                         <TableCell>
                           {rma.deliveryDate 
-                            ? format(new Date(rma.deliveryDate), "d. MMM yyyy", { locale: da })
+                            ? (
+                              (() => {
+                                try {
+                                  return format(new Date(rma.deliveryDate), "d. MMM yyyy", { locale: da });
+                                } catch {
+                                  return 'Ugyldig dato';
+                                }
+                              })()
+                            )
                             : '-'
                           }
                         </TableCell>
@@ -319,4 +440,4 @@ export function CustomerView({ customer: initialCustomer, onClose }: CustomerVie
       </SheetContent>
     </Sheet>
   );
-}
+} 
