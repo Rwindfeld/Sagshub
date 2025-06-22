@@ -352,7 +352,7 @@ export default function WorkerDashboard() {
             </div>
 
             {/* Sager tabs og liste */}
-            <div className="bg-white/80 backdrop-blur-sm rounded-lg shadow-sm">
+                          <div className="bg-card/80 backdrop-blur-sm rounded-lg shadow-sm dark:shadow-lg">
               <Tabs defaultValue="all" className="w-full">
                 <div className="flex">
                   <div className="w-64 border-r">
@@ -388,7 +388,7 @@ export default function WorkerDashboard() {
 
                   <div className="flex-1 p-4">
                     <TabsContent value="all" className="m-0">
-                      <div className="bg-white/80 backdrop-blur-sm rounded-lg shadow-sm p-4">
+                      <div className="bg-card/80 backdrop-blur-sm rounded-lg shadow-sm dark:shadow-lg p-4">
                         <CaseList 
                           searchTerm={searchTerm}
                           statusCounts={statusCounts}
@@ -416,7 +416,7 @@ export default function WorkerDashboard() {
                       ready_for_pickup: "Klar til afhentning"
                     }).map(([statusKey, statusLabel]) => (
                       <TabsContent key={statusKey} value={statusKey} className="m-0">
-                        <div className="bg-white/80 backdrop-blur-sm rounded-lg shadow-sm p-4">
+                        <div className="bg-card/80 backdrop-blur-sm rounded-lg shadow-sm dark:shadow-lg p-4">
                           <CaseList 
                             searchTerm={searchTerm}
                             status={statusKey}

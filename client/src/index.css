@@ -89,4 +89,94 @@
   .table tbody tr.alarm-row {
     @apply bg-red-50 dark:bg-red-900/30 border-red-500 dark:border-red-400 !important;
   }
+
+  /* Dark mode forbedringer for bedre læsbarhed */
+  .dark .text-gray-700 {
+    @apply text-gray-200;
+  }
+  
+  .dark .text-gray-600 {
+    @apply text-gray-300;
+  }
+  
+  .dark .text-gray-500 {
+    @apply text-gray-400;
+  }
+
+  /* Stats cards og andre hvide baggrunde */
+  .dark .bg-white {
+    @apply bg-gray-900;
+  }
+  
+  .dark .bg-gray-50 {
+    @apply bg-gray-800;
+  }
+  
+  .dark .bg-gray-100 {
+    @apply bg-gray-800/50;
+  }
+
+  /* Forbedret kontrast for status badges i dark mode */
+  .dark .bg-green-100 {
+    @apply bg-green-900/30;
+  }
+  
+  .dark .text-green-800 {
+    @apply text-green-200;
+  }
+  
+  .dark .bg-blue-100 {
+    @apply bg-blue-900/30;
+  }
+  
+  .dark .text-blue-800 {
+    @apply text-blue-200;
+  }
+  
+  .dark .bg-yellow-100 {
+    @apply bg-yellow-900/30;
+  }
+  
+  .dark .text-yellow-800 {
+    @apply text-yellow-200;
+  }
+  
+  .dark .bg-red-100 {
+    @apply bg-red-900/30;
+  }
+  
+  .dark .text-red-800 {
+    @apply text-red-200;
+  }
+
+  /* Input felter og form elementer i dark mode */
+  .dark input[type="month"],
+  .dark input[type="text"],
+  .dark input[type="email"],
+  .dark input[type="password"],
+  .dark select {
+    @apply bg-gray-800 border-gray-600 text-gray-200;
+  }
+  
+  .dark input[type="month"]:focus,
+  .dark input[type="text"]:focus,
+  .dark input[type="email"]:focus,
+  .dark input[type="password"]:focus,
+  .dark select:focus {
+    @apply bg-gray-700 border-gray-500;
+  }
+
+  /* Chart baggrunde i dark mode */
+  .dark .recharts-surface {
+    @apply bg-gray-900/50;
+  }
+  
+  .dark .recharts-cartesian-grid-horizontal line,
+  .dark .recharts-cartesian-grid-vertical line {
+    stroke: rgba(156, 163, 175, 0.2);
+  }
+  
+  .dark .recharts-text {
+    @apply text-gray-300;
+  }
 }

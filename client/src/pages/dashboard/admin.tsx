@@ -707,7 +707,7 @@ export default function AdminPage() {
             {/* MEDARBEJDERE/ADMIN TABEL */}
             <div className="mb-8">
               <h2 className="text-lg font-semibold mb-2">Medarbejdere & Admins</h2>
-              <div className="bg-white rounded-lg shadow">
+                              <div className="bg-card rounded-lg shadow dark:shadow-lg">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -721,7 +721,7 @@ export default function AdminPage() {
                     {paginatedStaff.map((userData, index) => {
                       const isEven = index % 2 === 0;
                       return (
-                        <TableRow key={userData.id} className={isEven ? 'bg-white' : 'bg-gray-50'}>
+                        <TableRow key={userData.id} className={isEven ? 'bg-card' : 'bg-muted/30'}>
                           <TableCell>{userData.name}</TableCell>
                           <TableCell>{userData.username}</TableCell>
                           <TableCell>
@@ -850,7 +850,7 @@ export default function AdminPage() {
                       className="inline-flex items-center px-3 py-1 rounded-full bg-blue-100 text-blue-800 text-sm font-medium border border-blue-200"
                     >
                       {getStatusLabel(value)}
-                      <span className="ml-2 text-xs text-gray-400">({value})</span>
+                      <span className="ml-2 text-xs text-muted-foreground">({value})</span>
                     </span>
                   ))}
                 </div>
@@ -864,7 +864,7 @@ export default function AdminPage() {
                       className="inline-flex items-center px-3 py-1 rounded-full bg-green-100 text-green-800 text-sm font-medium border border-green-200"
                     >
                       {getPriorityLabel(value)}
-                      <span className="ml-2 text-xs text-gray-400">({value})</span>
+                      <span className="ml-2 text-xs text-muted-foreground">({value})</span>
                     </span>
                   ))}
                 </div>
@@ -872,7 +872,7 @@ export default function AdminPage() {
             </div>
           </TabsContent>
           <TabsContent value="download-customer">
-            <div className="max-w-xl mx-auto p-6 bg-white rounded-xl shadow space-y-6">
+            <div className="max-w-xl mx-auto p-6 bg-card rounded-xl shadow dark:shadow-lg space-y-6">
               <h2 className="text-2xl font-bold mb-2 flex items-center gap-2">
                 <span>Download/print kundedata</span>
                 <Info className="w-5 h-5 text-blue-400" />
@@ -915,7 +915,7 @@ export default function AdminPage() {
             </div>
           </TabsContent>
           <TabsContent value="stats">
-            <div className="p-6 bg-white rounded-xl shadow space-y-8">
+            <div className="p-6 bg-card rounded-xl shadow dark:shadow-lg space-y-8">
               <div className="mb-8 flex items-center gap-4">
                 <div>
                   <h1 className="text-3xl font-bold flex items-center gap-2">
@@ -972,7 +972,7 @@ function CasesPerMonthGraph() {
   const change = casesLastMonth > 0 ? Math.round(((casesThisMonth - casesLastMonth) / casesLastMonth) * 100) : 0;
 
   return (
-    <div className="bg-white rounded-xl shadow p-6 flex flex-col gap-4 border border-gray-100">
+    <div className="bg-card rounded-xl shadow dark:shadow-lg p-6 flex flex-col gap-4 border border-border">
       <div className="flex items-center gap-2 mb-2">
         <FileText className="w-5 h-5 text-blue-500" />
         <span className="text-lg font-semibold">Sager pr. måned</span>
@@ -1056,7 +1056,7 @@ function AvgCaseTimeGraph() {
   ].filter(item => item.avgDays > 0);
 
   return (
-    <div className="bg-white rounded-xl shadow p-6 flex flex-col gap-4 border border-gray-100">
+    <div className="bg-card rounded-xl shadow dark:shadow-lg p-6 flex flex-col gap-4 border border-border">
       <div className="flex items-center gap-2 mb-2">
         <Clock className="w-5 h-5 text-green-500" />
         <span className="text-lg font-semibold">Gennemsnitlig sagstid - månedlig sammenligning</span>
@@ -1120,7 +1120,7 @@ function NewCustomersGraph() {
   const change = customersLastMonth > 0 ? Math.round(((customersThisMonth - customersLastMonth) / customersLastMonth) * 100) : 0;
 
   return (
-    <div className="bg-white rounded-xl shadow p-6 flex flex-col gap-4 border border-gray-100">
+    <div className="bg-card rounded-xl shadow dark:shadow-lg p-6 flex flex-col gap-4 border border-border">
       <div className="flex items-center gap-2 mb-2">
         <Users className="w-5 h-5 text-purple-500" />
         <span className="text-lg font-semibold">Nye kunder pr. måned</span>
@@ -1182,7 +1182,7 @@ function RmaPerMonthGraph() {
   const chartData = months.map(month => ({ month, antal: counts[month] }));
 
   return (
-    <div className="bg-white rounded-xl shadow p-6 flex flex-col gap-4 border border-gray-100">
+    <div className="bg-card rounded-xl shadow dark:shadow-lg p-6 flex flex-col gap-4 border border-border">
       <div className="flex items-center gap-2 mb-2">
         <Activity className="w-5 h-5 text-orange-500" />
         <span className="text-lg font-semibold">Antal RMA pr. måned</span>
@@ -1238,7 +1238,7 @@ function OrdersPerMonthGraph() {
   const chartData = months.map(month => ({ month, antal: counts[month] }));
 
   return (
-    <div className="bg-white rounded-xl shadow p-6 flex flex-col gap-4 border border-gray-100">
+    <div className="bg-card rounded-xl shadow dark:shadow-lg p-6 flex flex-col gap-4 border border-border">
       <div className="flex items-center gap-2 mb-2">
         <Package className="w-5 h-5 text-indigo-500" />
         <span className="text-lg font-semibold">Antal bestillinger pr. måned</span>
@@ -1302,7 +1302,7 @@ function CasesByTreatmentGraph() {
   ];
 
   return (
-    <div className="bg-white rounded-xl shadow p-6 flex flex-col gap-4 border border-gray-100">
+    <div className="bg-card rounded-xl shadow dark:shadow-lg p-6 flex flex-col gap-4 border border-border">
       <div className="flex items-center gap-2 mb-2">
         <Activity className="w-5 h-5 text-red-500" />
         <span className="text-lg font-semibold">Antal sager pr. behandlingstype pr. måned</span>
@@ -1476,8 +1476,8 @@ function StatsCards() {
 
 function StatCard({ title, value, icon }: { title: string; value: React.ReactNode; icon: React.ReactNode }) {
   return (
-    <div className="bg-gray-50 rounded-xl shadow p-4 flex flex-col items-start gap-2 border border-gray-100">
-      <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
+    <div className="bg-card rounded-xl shadow dark:shadow-lg p-4 flex flex-col items-start gap-2 border border-border">
+      <div className="flex items-center gap-2 text-sm font-medium text-foreground">
         {icon}
         {title}
       </div>
@@ -1503,8 +1503,8 @@ function StatCardWithChange({
   const isGoodChange = isLowerBetter ? !isPositiveChange : isPositiveChange;
   
   return (
-    <div className="bg-gray-50 rounded-xl shadow p-4 flex flex-col items-start gap-2 border border-gray-100">
-      <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
+    <div className="bg-card rounded-xl shadow dark:shadow-lg p-4 flex flex-col items-start gap-2 border border-border">
+      <div className="flex items-center gap-2 text-sm font-medium text-foreground">
         {icon}
         {title}
       </div>
