@@ -1,40 +1,26 @@
-node_modules/
-*.exe
-*.asar
-*.log
-/dist/
-/build/
-/client/postgresql.exe
-
-# Build artifacts
-/dist
-/build
-/out
-*.log
-
-# Dependencies
-node_modules/
-
-# Electron
-*.asar
-*.exe
-
-# DB og klient binærer
-sagshub/client/postgresql.exe
-sagshub/SagsHub-Distribution/
-sagshub/dist-electron/
-
-# Ignore node dependencies
+# Dependencies 
 node_modules/
 vendor/
 dist/
 build/
 out/
 
-# Ignore binary files
+# Build artifacts
+*.log
+
+# Binary files
 *.exe
 *.asar
 *.dll
 *.zip
-*.log
+*.tar.gz
+*.pdf
 
+# DB og klient binærer
+sagshub/client/postgresql.exe
+sagshub/SagsHub-Distribution/
+sagshub/dist-electron/
+
+# OS files
+.DS_Store
+venv/
