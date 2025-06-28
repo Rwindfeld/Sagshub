@@ -1,15 +1,34 @@
+// =============================================================================
+// SAGSHUB SERVER VITE INTEGRATION
+// =============================================================================
+// Denne fil håndterer integration mellem Express server og Vite frontend i production og indeholder:
+// - Vite build integration til server
+// - Static file serving fra Vite dist
+// - SPA fallback til React Router
+// - Production optimering af frontend assets
+// - Development og production miljø håndtering
+// =============================================================================
+
+// =================================================================
+// CORE IMPORTS
+// =================================================================
 import express, { type Express } from "express";
 import fs from "fs";
 import path, { dirname } from "path";
 import { fileURLToPath } from "url";
 import { createServer as createViteServer } from "vite";
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
 import { type Server } from "http";
 import viteConfig from "../vite.config.js";
 import { nanoid } from "nanoid";
 
 // const viteLogger = createLogger(); // Removed due to compatibility
+
+// =================================================================
+// ES MODULES PATH RESOLUTION
+// =================================================================
+// Konverterer import.meta.url til __dirname equivalent i ES modules
+const __filename = fileURLToPath(import.meta.url);            // Nuværende fil sti
+const __dirname = dirname(__filename);                   // Directory sti
 
 export function log(message: string, source = "express") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
@@ -23,13 +42,36 @@ export function log(message: string, source = "express") {
 }
 
 export async function setupVite(app: Express, server: Server) {
-  // I stedet for at starte en Vite-server her, vil vi blot 
-  // håndtere API-requests, da frontend kører på sin egen port (5173)
-  log("Vite server forventes at køre på port 5173. Vi starter ikke Vite middleware her.");
+  // =============================================================
+  // PRODUCTION STATIC FILE SERVING
+  // =============================================================
+  // I production serveres pre-built frontend assets fra dist mappen
   
-  // For at undgå 404 fejl på API-routes, tilføjer vi en catch-all route
-  app.get('/', (_req, res) => {
-    res.send('API-server kører. Frontend forventes at køre på http://localhost:5173');
+  // Client dist directory sti (bygget af Vite)
+  const clientDistPath = path.join(__dirname, '../client/dist'); // Vite build output directory
+  
+  // Serverer static assets (CSS, JS, images)
+  app.use('/assets', express.static(path.join(clientDistPath, 'assets'))); // Optimerede assets fra Vite build
+  
+  // =============================================================
+  // SPA FALLBACK MIDDLEWARE
+  // =============================================================
+  // Alle routes der ikke matcher API endpoints skal servere index.html
+  // Dette sikrer at React Router kan håndtere client-side routing
+  app.get('*', (req, res, next) => {
+    // Skip hvis det er API route
+    if (req.path.startsWith('/api')) {
+      return next();                                          // Lad API routes håndteres af andre middleware
+    }
+    
+    // Servér React SPA index.html for alle andre routes
+    const indexPath = path.join(clientDistPath, 'index.html'); // Vite byggede index.html
+    res.sendFile(indexPath, (err) => {
+      if (err) {
+        console.error('Fejl ved serving af index.html:', err); // Log fejl hvis fil ikke findes
+        res.status(500).send('Server fejl');                 // Fallback fejl response
+      }
+    });
   });
 }
 

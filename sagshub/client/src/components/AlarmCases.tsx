@@ -1,51 +1,9 @@
-import { useEffect, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { isCaseInAlarm } from '../utils/dates';
-import { Case } from '../types/case';
-import { StatusHistoryItem } from '../types/status-history';
+import { useAlarmCasesQuery } from '../queries/cases';
 import { CaseList } from './case-list';
 
 export function AlarmCases() {
-  const [alarmCases, setAlarmCases] = useState<Case[]>([]);
-  const [statusHistoryMap, setStatusHistoryMap] = useState<Record<number, StatusHistoryItem[]>>({});
-
-  // Hent alle sager
-  const { data: casesData, isLoading: casesLoading } = useQuery({
-    queryKey: ['cases'],
-    queryFn: async () => {
-      const response = await fetch('/api/cases', {
-        credentials: 'include'
-      });
-      if (!response.ok) throw new Error('Fejl ved hentning af sager');
-      return response.json();
-    }
-  });
-
-  // Hent statushistorik for ALLE sager og identificer alarmsager
-  useEffect(() => {
-    if (!casesData?.items || casesData.items.length === 0) return;
-    
-    const fetchStatusHistoryForCases = async () => {
-      const historyPromises = casesData.items.map(caseItem =>
-        fetch(`/api/cases/${caseItem.id}/status-history`, {
-          credentials: 'include',
-        }).then(res => res.ok ? res.json() : [])
-          .catch(() => [])
-      );
-      const histories = await Promise.all(historyPromises);
-      const historyMap: Record<number, StatusHistoryItem[]> = {};
-      casesData.items.forEach((caseItem, idx) => {
-        historyMap[caseItem.id] = histories[idx];
-      });
-      setStatusHistoryMap(historyMap);
-      // Identificer sager i alarm
-      const alarmedCases = casesData.items.filter(caseItem => 
-        isCaseInAlarm(caseItem, historyMap[caseItem.id] || [])
-      );
-      setAlarmCases(alarmedCases);
-    };
-    fetchStatusHistoryForCases();
-  }, [casesData]);
+  // Brug den optimerede alarm query med hurtigere polling (10 sekunder)
+  const { data: alarmCases = [], isLoading: casesLoading } = useAlarmCasesQuery();
 
   if (casesLoading) {
     return (
@@ -65,7 +23,7 @@ export function AlarmCases() {
       </div>
       <CaseList 
         cases={alarmCases}
-        statusHistoryMap={statusHistoryMap}
+        statusHistoryMap={{}} // Tom da serveren allerede returnerer alarm sager
         showAlarmIndicator={true}
       />
     </div>

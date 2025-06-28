@@ -1,11 +1,40 @@
 <!DOCTYPE html>
-<html lang="en">
+<!-- =============================================================================
+     SAGSHUB FRONTEND HTML ENTRY POINT
+     =============================================================================
+     Dette er hovedHTML filen for React SPA (Single Page Application) og indeholder:
+     - Base HTML struktur til React applikation
+     - Vite development og production setup
+     - Meta tags til SEO og responsive design
+     - Script loading til React applikation
+     ============================================================================= -->
+<html lang="da">                                               <!-- Dansk som hovedsprog -->
   <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+    <!-- =================================================================
+         DOCUMENT METADATA
+         ================================================================= -->
+    <meta charset="UTF-8" />                                     <!-- UTF-8 encoding til dansk tekst support -->
+    
+    <!-- Responsive design viewport meta tag -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /> <!-- Mobile-first responsive design -->
+    
+    <!-- SEO og browser metadata -->
+    <title>SagsHub - Sagshåndteringssystem</title>              <!-- Browser tab titel -->
+    <meta name="description" content="Komplet sagshåndteringssystem til reparationsvirksomheder" /> <!-- SEO beskrivelse -->
   </head>
   <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
+    <!-- =================================================================
+         REACT APPLICATION MOUNT POINT
+         ================================================================= -->
+    <!-- Dette div element er hvor React applikationen bliver mounted/rendered -->
+    <div id="root"></div>                                        <!-- React root element (target for ReactDOM.render) -->
+    
+    <!-- =================================================================
+         JAVASCRIPT ENTRY POINT
+         ================================================================= -->
+    <!-- Vite entry point script - loader hele React applikationen -->
+    <script type="module" src="/src/main.tsx"></script>         <!-- TypeScript React entry point -->
+    <!-- I development: Vite serverer filen direkte -->
+    <!-- I production: Vite byggede og optimerede bundle -->
   </body>
 </html>

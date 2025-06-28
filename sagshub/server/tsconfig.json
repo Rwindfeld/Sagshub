@@ -1,25 +1,35 @@
 {
   "compilerOptions": {
-    "target": "ES2020",
-    "module": "Node16",
-    "moduleResolution": "node16",
-    "esModuleInterop": true,
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "node",
+    
     "outDir": "./dist",
     "rootDir": "./",
+    
     "strict": true,
-    "baseUrl": "./",
-    "paths": {
-      "@shared/*": ["../shared/*"]
-    },
-    "allowJs": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    
     "resolveJsonModule": true,
-    "skipLibCheck": true
+    "allowSyntheticDefaultImports": true,
+    
+    "sourceMap": true,
+    
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true
   },
+  
   "include": [
-    "**/*.ts"
+    "**/*.ts",
+    "**/*.js"
   ],
+  
   "exclude": [
     "node_modules",
-    "dist"
+    "dist",
+    "**/*.test.ts",
+    "**/*.spec.ts"
   ]
 } 

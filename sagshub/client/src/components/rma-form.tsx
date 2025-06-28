@@ -43,11 +43,11 @@ export function RMAForm({ onSubmit, isLoading, defaultValues, isEditing }: RMAFo
       customerId: null as number | null,
       customerName: "",
       invoiceNumber: "",
-      faultDate: new Date(),
-      faultDescription: "",
+      deliveryDate: new Date(),
+      description: "",
       rmaNumber: "",
       sku: "",
-      modelName: "",
+      model: "",
       serialNumber: "",
       supplier: "",
     },
@@ -62,9 +62,29 @@ export function RMAForm({ onSubmit, isLoading, defaultValues, isEditing }: RMAFo
     },
   });
 
+  // Forbedret submit handler med validation
+  const handleSubmit = (data: any) => {
+    console.log("Form data før submit:", data);
+    
+    // Sikrer at customerId er påkrævet og et nummer
+    if (!data.customerId) {
+      form.setError("customerName", {
+        type: "manual",
+        message: "Du skal vælge en kunde fra listen"
+      });
+      return;
+    }
+
+    // Filterer ud customerName fra submission da backend ikke forventer det
+    const { customerName, ...submissionData } = data;
+    
+    console.log("Submission data:", submissionData);
+    onSubmit(submissionData);
+  };
+
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+      <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
         {/* Kundedata sektion */}
         <Card>
           <CardHeader>
@@ -74,7 +94,16 @@ export function RMAForm({ onSubmit, isLoading, defaultValues, isEditing }: RMAFo
             <FormField
               control={form.control}
               name="customerName"
-              rules={{ required: "Kundenavn er påkrævet" }}
+              rules={{ 
+                required: "Kundenavn er påkrævet",
+                validate: () => {
+                  const customerId = form.getValues("customerId");
+                  if (!customerId) {
+                    return "Du skal vælge en kunde fra listen";
+                  }
+                  return true;
+                }
+              }}
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Kundenavn</FormLabel>
@@ -89,6 +118,8 @@ export function RMAForm({ onSubmit, isLoading, defaultValues, isEditing }: RMAFo
                           if (form.getValues("customerId")) {
                             form.setValue("customerId", null);
                           }
+                          // Clear validation error når bruger begynder at skrive
+                          form.clearErrors("customerName");
                         }}
                       />
                       <div className="absolute inset-x-0 top-full mt-1">
@@ -110,6 +141,7 @@ export function RMAForm({ onSubmit, isLoading, defaultValues, isEditing }: RMAFo
                                         onSelect={() => {
                                           form.setValue("customerName", customer.name);
                                           form.setValue("customerId", customer.id);
+                                          form.clearErrors("customerName"); // Clear error når kunde vælges
                                         }}
                                       >
                                         {customer.name}
@@ -124,6 +156,9 @@ export function RMAForm({ onSubmit, isLoading, defaultValues, isEditing }: RMAFo
                     </div>
                   </FormControl>
                   <FormMessage />
+                  {form.getValues("customerId") && (
+                    <p className="text-sm text-green-600">✓ Kunde valgt</p>
+                  )}
                 </FormItem>
               )}
             />
@@ -144,11 +179,11 @@ export function RMAForm({ onSubmit, isLoading, defaultValues, isEditing }: RMAFo
 
             <FormField
               control={form.control}
-              name="faultDate"
-              rules={{ required: "Fejlmeldingsdato er påkrævet" }}
+              name="deliveryDate"
+              rules={{ required: "Leveringsdato er påkrævet" }}
               render={({ field }) => (
                 <FormItem className="flex flex-col">
-                  <FormLabel>Fejlmeldt dato</FormLabel>
+                  <FormLabel>Leveringsdato</FormLabel>
                   <Popover>
                     <PopoverTrigger asChild>
                       <FormControl>
@@ -187,11 +222,11 @@ export function RMAForm({ onSubmit, isLoading, defaultValues, isEditing }: RMAFo
 
             <FormField
               control={form.control}
-              name="faultDescription"
-              rules={{ required: "Fejlbeskrivelse er påkrævet" }}
+              name="description"
+              rules={{ required: "Beskrivelse er påkrævet" }}
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Fejlbeskrivelse</FormLabel>
+                  <FormLabel>Beskrivelse</FormLabel>
                   <FormControl>
                     <Textarea {...field} />
                   </FormControl>
@@ -240,11 +275,11 @@ export function RMAForm({ onSubmit, isLoading, defaultValues, isEditing }: RMAFo
 
             <FormField
               control={form.control}
-              name="modelName"
-              rules={{ required: "Modelnavn er påkrævet" }}
+              name="model"
+              rules={{ required: "Model er påkrævet" }}
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Modelnavn</FormLabel>
+                  <FormLabel>Model</FormLabel>
                   <FormControl>
                     <Input {...field} />
                   </FormControl>

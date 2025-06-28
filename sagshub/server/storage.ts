@@ -1,303 +1,418 @@
-import { db } from "./db.js";
-import { eq, desc, asc, and, or, like, ilike, sql, ne } from "drizzle-orm";
-import type {
-  User,
-  Customer,
-  Case,
-  StatusHistory,
-  RMA,
-  RMAStatusHistory,
-  Order,
-  InsertOrder,
-  InternalCase,
-  InsertInternalCase,
-  InternalCaseWithDetails
-} from "../shared/schema.js";
-import { 
-  users, 
-  customers, 
-  cases, 
-  rma, 
-  orders, 
-  internalCases, 
-  statusHistory, 
-  rmaStatusHistory,
-  CaseStatus,
-  TreatmentType,
-  PriorityType,
-  DeviceType,
-  OrderStatus,
-  RMAStatus
-} from "../shared/schema";
-import session from "express-session";
-import connectPg from "connect-pg-simple";
-import { isCaseInAlarm } from "../shared/alarm";
+// =============================================================================
+// SAGSHUB DATABASE STORAGE LAYER
+// =============================================================================
+// Denne fil implementerer hele data access layer for SagsHub systemet og indeholder:
+// - Database operationer for alle entiteter (sager, kunder, brugere, etc.)
+// - Pagination og søgefunktionalitet
+// - Session storage konfiguration
+// - Alarm logik for sager der kræver handling
+// - Komplekse queries med joins og filtrering
+// - CRUD operationer med proper error handling
+// =============================================================================
 
-// Helper-funktion til at beregne antal hverdage mellem to datoer
+// Import af database forbindelse og Drizzle ORM operatorer
+import { db } from "./db.js";                               // Database forbindelse
+import { eq, desc, asc, and, or, like, ilike, sql, ne } from "drizzle-orm"; // Drizzle ORM query operatorer
+
+// Import af TypeScript type definitioner fra schema
+import type {
+  User,                                                     // Bruger type
+  Customer,                                                 // Kunde type  
+  Case,                                                     // Sag type
+  StatusHistory,                                            // Status historie type
+  RMA,                                                      // RMA type
+  RMAStatusHistory,                                         // RMA status historie type
+  Order,                                                    // Ordre type
+  InsertOrder,                                              // Insert ordre type
+  InternalCase,                                             // Intern sag type
+  InsertInternalCase,                                       // Insert intern sag type
+  InternalCaseWithDetails                                   // Intern sag med detaljer type
+} from "../shared/schema.js";
+
+// Import af database tabel definitioner og enums
+import { 
+  users,                                                    // Users tabel
+  customers,                                                // Customers tabel
+  cases,                                                    // Cases tabel
+  rma,                                                      // RMA tabel
+  orders,                                                   // Orders tabel
+  internalCases,                                            // Internal cases tabel
+  statusHistory,                                            // Status history tabel
+  rmaStatusHistory,                                         // RMA status history tabel
+  CaseStatus,                                               // Case status enum
+  TreatmentType,                                            // Treatment type enum
+  PriorityType,                                             // Priority type enum
+  DeviceType,                                               // Device type enum
+  OrderStatus,                                              // Order status enum
+  RMAStatus                                                 // RMA status enum
+} from "../shared/schema";
+
+// Import af session middleware og PostgreSQL session store
+import session from "express-session";                     // Express session middleware
+import connectPg from "connect-pg-simple";                 // PostgreSQL session store
+import { isCaseInAlarm } from "../shared/alarm";           // Alarm logik utility
+
+// =============================================================================
+// UTILITY FUNKTIONER
+// =============================================================================
+
+// Beregner antal arbejdsdage mellem to datoer (ekskluderer weekender)
 function getBusinessDaysDifference(startDate: Date, endDate: Date): number {
-  let count = 0;
-  let current = new Date(startDate);
-  while (current <= endDate) {
-    const day = current.getDay();
-    if (day !== 0 && day !== 6) count++; // 0 = søndag, 6 = lørdag
-    current.setDate(current.getDate() + 1);
+  let count = 0;                                            // Tæller for arbejdsdage
+  let current = new Date(startDate);                        // Nuværende dato i loop
+  while (current <= endDate) {                              // Loop gennem alle dage
+    const day = current.getDay();                           // Henter ugedag (0-6)
+    if (day !== 0 && day !== 6) count++;                   // Tæller kun hverdage (ikke søndag=0 eller lørdag=6)
+    current.setDate(current.getDate() + 1);                // Går til næste dag
   }
   return count;
 }
 
-// Base interfaces for extended types
+// =============================================================================
+// TYPE DEFINITIONER OG INTERFACES
+// =============================================================================
+
+// Udvidet status historie interface med bruger navn information
 export interface ExtendedStatusHistory extends Omit<StatusHistory, "createdBy"> {
-  createdBy: number;
-  createdByName: string | null;
+  createdBy: number;                                        // Bruger ID der oprettede status
+  createdByName: string | null;                            // Navn på bruger (denormaliseret for performance)
 }
 
+// Udvidet RMA status historie interface med bruger navn information
 export interface ExtendedRMAStatusHistory extends Omit<RMAStatusHistory, "createdBy"> {
-  createdBy: number;
-  createdByName: string | null;
+  createdBy: number;                                        // Bruger ID der oprettede RMA status
+  createdByName: string | null;                            // Navn på bruger (denormaliseret for performance)
 }
 
-// Interface for cases with customer info
+// Sag interface med kunde information (joinede data)
 export interface CaseWithCustomer extends Omit<Case, "createdBy"> {
-  customerName: string;
-  createdBy: string | null;
+  customerName: string;                                     // Kunde navn (joinede data fra customer tabel)
+  createdBy: string | null;                                // Navn på bruger der oprettede sagen
 }
 
-// Add these interfaces at the top with the other interfaces
+// Generic pagineret response interface
 export interface PaginatedResponse<T> {
-  items: T[];
-  total: number;
-  page: number;
-  pageSize: number;
-  totalPages: number;
-  statusCounts?: Record<string, number>;
+  items: T[];                                               // Array af items på denne side
+  total: number;                                            // Totalt antal items
+  page: number;                                             // Nuværende side nummer
+  pageSize: number;                                         // Antal items per side
+  totalPages: number;                                       // Total antal sider
+  statusCounts?: Record<string, number>;                    // Optional: antal per status (for filtrering)
 }
 
+// Options interface til paginerede sager queries
 export interface GetPaginatedCasesOptions {
-  page: number;
-  pageSize: number;
-  searchTerm?: string;
-  treatment?: string;
-  priority?: string;
-  sort?: string;
-  customerId?: number;
-  isWorker: boolean;
-  status?: string;
-  excludeStatus?: string;
-  includeCompleted?: boolean;
+  page: number;                                             // Side nummer (1-baseret)
+  pageSize: number;                                         // Antal sager per side
+  searchTerm?: string;                                      // Søgeterm (kunde navn, sag nummer, beskrivelse)
+  treatment?: string;                                       // Filter på behandlingstype
+  priority?: string;                                        // Filter på prioritet
+  sort?: string;                                            // Sortering (newest, oldest, etc.)
+  customerId?: number;                                      // Filter på specifik kunde
+  isWorker: boolean;                                        // Er brugeren medarbejder? (påvirker hvilke sager der vises)
+  status?: string;                                          // Filter på specifik status
+  excludeStatus?: string;                                   // Ekskluder specifik status
+  includeCompleted?: boolean;                               // Inkluder afsluttede sager?
 }
 
-// Tilføj RMA interface til paginerede forespørgsler
+// Options interface til paginerede RMA queries
 export interface GetPaginatedRMAsOptions {
-  page: number;
-  pageSize: number;
-  searchTerm?: string;
-  status?: string;
-  sort?: 'newest' | 'oldest' | 'default';
+  page: number;                                             // Side nummer (1-baseret)
+  pageSize: number;                                         // Antal RMA'er per side
+  searchTerm?: string;                                      // Søgeterm (kunde navn, RMA nummer, beskrivelse)
+  status?: string;                                          // Filter på RMA status
+  sort?: 'newest' | 'oldest' | 'default';                  // Sortering type
 }
 
-// Tilføj interface til interne sager
+// Options interface til paginerede interne sager queries
 export interface GetPaginatedInternalCasesOptions {
-  page: number;
-  pageSize: number;
-  userId: number;
-  onlySent?: boolean;
-  onlyReceived?: boolean;
-  onlyUnread?: boolean;
+  page: number;                                             // Side nummer (1-baseret)
+  pageSize: number;                                         // Antal interne beskeder per side
+  userId: number;                                           // Bruger ID (for at finde relevante beskeder)
+  onlySent?: boolean;                                       // Vis kun sendte beskeder
+  onlyReceived?: boolean;                                   // Vis kun modtagne beskeder
+  onlyUnread?: boolean;                                     // Vis kun ulæste beskeder
 }
 
-// Tilføj interface til at hente paginerede bestillinger
+// Options interface til paginerede ordre queries
 export interface GetPaginatedOrdersOptions {
-  page: number;
-  pageSize: number;
-  searchTerm?: string;
-  status?: string;
-  sort?: string;
-  customerId?: number;
+  page: number;                                             // Side nummer (1-baseret)
+  pageSize: number;                                         // Antal ordrer per side
+  searchTerm?: string;                                      // Søgeterm (kunde navn, ordre nummer)
+  status?: string;                                          // Filter på ordre status
+  sort?: string;                                            // Sortering
+  customerId?: number;                                      // Filter på specifik kunde
 }
 
-// Type for order med kundenavn
-export type OrderWithCustomer = Order & { customerName?: string };
+// Type definition for ordre med kunde information
+export type OrderWithCustomer = Order & { customerName?: string }; // Ordre med joinede kunde navn
 
+// =============================================================================
+// STORAGE INTERFACE DEFINITION
+// =============================================================================
+// Definerer kontrakten for alle database operationer i systemet
 export interface IStorage {
-  getUser(id: number): Promise<User | undefined>;
-  getUserByUsername(username: string): Promise<User | undefined>;
-  createUser(userData: Omit<User, "id">): Promise<User>;
-  getUsers(): Promise<User[]>;
-  getCustomers(): Promise<Customer[]>;
-  getCustomer(id: number): Promise<Customer | undefined>;
-  createCustomer(customer: Omit<Customer, "id" | "createdAt" | "updatedAt">): Promise<Customer>;
-  updateCustomer(id: number, customer: Partial<Omit<Customer, "id" | "createdAt" | "updatedAt">>): Promise<Customer | undefined>;
-  searchCustomers(searchTerm: string): Promise<Customer[]>;
-  getCases(customerId?: number): Promise<CaseWithCustomer[]>;
-  getCase(id: number): Promise<Case | undefined>;
-  createCase(caseData: Omit<Case, "id" | "createdAt" | "updatedAt"> & { createdByName?: string }): Promise<Case>;
-  updateCaseStatus(id: number, status: string): Promise<Case>;
-  getLatestCaseNumber(prefix: string): Promise<Case[]>;
-  searchCases(searchTerm: string): Promise<CaseWithCustomer[]>;
-  sessionStore: session.Store;
-  getCaseStatusHistory(caseId: number): Promise<ExtendedStatusHistory[]>;
-  updateCaseStatusWithHistory(caseId: number, status: string, comment: string, userId: number, updatedByName?: string): Promise<Case>;
-  getRMAs(): Promise<RMA[]>;
-  getRMA(id: number): Promise<RMA | undefined>;
-  createRMA(rmaData: Omit<RMA, "id" | "createdAt" | "updatedAt">): Promise<RMA>;
-  updateRMAStatus(id: number, status: string): Promise<RMA>;
-  getRMAStatusHistory(rmaId: number): Promise<ExtendedRMAStatusHistory[]>;
-  updateRMAStatusWithHistory(rmaId: number, status: string, comment: string, userId: number, updatedByName?: string): Promise<RMA>;
-  updateCase(id: number, caseData: Partial<Omit<Case, "id" | "createdAt" | "updatedAt">>): Promise<Case | undefined>;
-  updateRMA(id: number, rmaData: Partial<Omit<RMA, "id" | "createdAt" | "updatedAt">>): Promise<RMA>;
-  // Add these new methods
-  getPaginatedCases(options: GetPaginatedCasesOptions): Promise<PaginatedResponse<CaseWithCustomer>>;
-  getPaginatedCustomers(page: number, pageSize: number, searchTerm?: string): Promise<PaginatedResponse<Customer>>;
-  getPaginatedRMAs(options: GetPaginatedRMAsOptions): Promise<PaginatedResponse<RMA>>;
-  getRMAsByCustomerId(customerId: number): Promise<RMA[]>;
-  // Interne sager methods
-  createInternalCase(internalCaseData: InsertInternalCase): Promise<InternalCase>;
-  getInternalCase(id: number): Promise<InternalCaseWithDetails | undefined>;
-  getPaginatedInternalCases(options: GetPaginatedInternalCasesOptions): Promise<PaginatedResponse<InternalCaseWithDetails>>;
-  markInternalCaseAsRead(id: number): Promise<InternalCase | undefined>;
-  getUnreadInternalCasesCount(userId: number): Promise<number>;
-  // Bestilling methods
-  getOrders(): Promise<Order[]>;
-  getOrder(id: number): Promise<(OrderWithCustomer & { 
+  // =================================================================
+  // BRUGER OPERATIONER
+  // =================================================================
+  getUser(id: number): Promise<User | undefined>;                    // Hent bruger via ID
+  getUserByUsername(username: string): Promise<User | undefined>;    // Hent bruger via brugernavn
+  createUser(userData: Omit<User, "id">): Promise<User>;             // Opret ny bruger
+  getUsers(): Promise<User[]>;                                       // Hent alle brugere
+  
+  // =================================================================
+  // KUNDE OPERATIONER
+  // =================================================================
+  getCustomers(): Promise<Customer[]>;                               // Hent alle kunder
+  getCustomer(id: number): Promise<Customer | undefined>;            // Hent specifik kunde
+  createCustomer(customer: Omit<Customer, "id" | "createdAt" | "updatedAt">): Promise<Customer>; // Opret ny kunde
+  updateCustomer(id: number, customer: Partial<Omit<Customer, "id" | "createdAt" | "updatedAt">>): Promise<Customer | undefined>; // Opdater kunde
+  searchCustomers(searchTerm: string): Promise<Customer[]>;          // Søg kunder
+  
+  // =================================================================
+  // SAG OPERATIONER
+  // =================================================================
+  getCases(customerId?: number): Promise<CaseWithCustomer[]>;        // Hent sager (evt. filtreret på kunde)
+  getCase(id: number): Promise<Case | undefined>;                    // Hent specifik sag
+  createCase(caseData: Omit<Case, "id" | "createdAt" | "updatedAt"> & { createdByName?: string }): Promise<Case>; // Opret ny sag
+  updateCaseStatus(id: number, status: string): Promise<Case>;       // Opdater sag status
+  getLatestCaseNumber(prefix: string): Promise<Case[]>;              // Hent seneste sagsnumre for auto-generering
+  searchCases(searchTerm: string): Promise<CaseWithCustomer[]>;      // Søg sager
+  
+  // =================================================================
+  // SESSION STORE
+  // =================================================================
+  sessionStore: session.Store;                                       // Express session store til login sessions
+  
+  // =================================================================
+  // STATUS HISTORIE OPERATIONER
+  // =================================================================
+  getCaseStatusHistory(caseId: number): Promise<ExtendedStatusHistory[]>; // Hent status historie for sag
+  updateCaseStatusWithHistory(caseId: number, status: string, comment: string, userId: number, updatedByName?: string): Promise<Case>; // Opdater status med historik
+  
+  // =================================================================
+  // RMA OPERATIONER
+  // =================================================================
+  getRMAs(): Promise<RMA[]>;                                         // Hent alle RMA'er
+  getRMA(id: number): Promise<RMA | undefined>;                      // Hent specifik RMA
+  createRMA(rmaData: Omit<RMA, "id" | "createdAt" | "updatedAt">): Promise<RMA>; // Opret ny RMA
+  updateRMAStatus(id: number, status: string): Promise<RMA>;         // Opdater RMA status
+  getRMAStatusHistory(rmaId: number): Promise<ExtendedRMAStatusHistory[]>; // Hent RMA status historie
+  updateRMAStatusWithHistory(rmaId: number, status: string, comment: string, userId: number, updatedByName?: string): Promise<RMA>; // Opdater RMA status med historik
+  updateCase(id: number, caseData: Partial<Omit<Case, "id" | "createdAt" | "updatedAt">>): Promise<Case | undefined>; // Opdater sag
+  updateRMA(id: number, rmaData: Partial<Omit<RMA, "id" | "createdAt" | "updatedAt">>): Promise<RMA>; // Opdater RMA
+  
+  // =================================================================
+  // PAGINEREDE QUERIES
+  // =================================================================
+  getPaginatedCases(options: GetPaginatedCasesOptions): Promise<PaginatedResponse<CaseWithCustomer>>; // Paginerede sager
+  getPaginatedCustomers(page: number, pageSize: number, searchTerm?: string): Promise<PaginatedResponse<Customer>>; // Paginerede kunder
+  getPaginatedRMAs(options: GetPaginatedRMAsOptions): Promise<PaginatedResponse<RMA>>; // Paginerede RMA'er
+  getRMAsByCustomerId(customerId: number): Promise<RMA[]>;           // RMA'er for specifik kunde
+  
+  // =================================================================
+  // INTERNE SAG OPERATIONER
+  // =================================================================
+  createInternalCase(internalCaseData: InsertInternalCase): Promise<InternalCase>; // Opret intern besked
+  getInternalCase(id: number): Promise<InternalCaseWithDetails | undefined>; // Hent specifik intern besked
+  getPaginatedInternalCases(options: GetPaginatedInternalCasesOptions): Promise<PaginatedResponse<InternalCaseWithDetails>>; // Paginerede interne beskeder
+  markInternalCaseAsRead(id: number): Promise<InternalCase | undefined>; // Marker intern besked som læst
+  getUnreadInternalCasesCount(userId: number): Promise<number>;      // Antal ulæste interne beskeder
+  
+  // =================================================================
+  // BESTILLING OPERATIONER
+  // =================================================================
+  getOrders(): Promise<Order[]>;                                     // Hent alle bestillinger
+  getOrder(id: number): Promise<(OrderWithCustomer & {              // Hent specifik bestilling med detaljer
     customer?: { name: string; phone: string; email: string | null };
     createdByUser?: { name: string };
     case?: { caseNumber: string; description: string };
     rmaCase?: { rmaNumber: string; description: string };
   }) | undefined>;
-  getLatestOrderNumber(): Promise<Order | undefined>;
-  createOrder(orderData: InsertOrder): Promise<Order>;
-  updateOrderStatus(id: number, status: string): Promise<Order>;
-  updateOrder(id: number, orderData: Partial<Omit<Order, "id" | "createdAt" | "updatedAt">>): Promise<Order>;
-  getPaginatedOrders(options: GetPaginatedOrdersOptions): Promise<PaginatedResponse<OrderWithCustomer>>;
-  getOrdersByCustomerId(customerId: number): Promise<OrderWithCustomer[]>;
-  getOrdersByCaseId(caseId: number): Promise<OrderWithCustomer[]>;
-  searchRMAs(searchTerm: string): Promise<RMA[]>;
-  searchOrders(searchTerm: string): Promise<OrderWithCustomer[]>;
-  updateUserPassword(userId: number, hashedPassword: string): Promise<User>;
-  updateUser(id: number, data: { username?: string; name?: string; isWorker?: boolean; isAdmin?: boolean; birthday?: Date | null; password?: string }): Promise<User>;
-  deleteUser(id: number): Promise<void>;
-  // Customer authentication methods
-  getCustomerUser(customerId: number): Promise<User | undefined>;
-  createCustomerUser(customer: Customer, caseNumber: string): Promise<User>;
-  createOrUpdateCustomerUsers(): Promise<void>;
-  getCaseByNumber(caseNumber: string): Promise<Case | undefined>;
-  getTotalCases(): Promise<number>;
-  getAlarmCases(): Promise<Case[]>;
-  getCasesInAlarm(): Promise<Case[]>;
-  getStatusCounts(): Promise<Record<string, number>>;
-  deleteCustomer(id: number): Promise<void>;
+  getLatestOrderNumber(): Promise<Order | undefined>;                // Hent seneste ordrenummer for auto-generering
+  createOrder(orderData: InsertOrder): Promise<Order>;               // Opret ny bestilling
+  updateOrderStatus(id: number, status: string): Promise<Order>;     // Opdater bestilling status
+  updateOrder(id: number, orderData: Partial<Omit<Order, "id" | "createdAt" | "updatedAt">>): Promise<Order>; // Opdater bestilling
+  getPaginatedOrders(options: GetPaginatedOrdersOptions): Promise<PaginatedResponse<OrderWithCustomer>>; // Paginerede bestillinger
+  getOrdersByCustomerId(customerId: number): Promise<OrderWithCustomer[]>; // Bestillinger for specifik kunde
+  getOrdersByCaseId(caseId: number): Promise<OrderWithCustomer[]>;   // Bestillinger for specifik sag
+  
+  // =================================================================
+  // SØGE OPERATIONER
+  // =================================================================
+  searchRMAs(searchTerm: string): Promise<RMA[]>;                    // Søg RMA'er
+  searchOrders(searchTerm: string): Promise<OrderWithCustomer[]>;    // Søg bestillinger
+  
+  // =================================================================
+  // BRUGER ADMINISTRATION
+  // =================================================================
+  updateUserPassword(userId: number, hashedPassword: string): Promise<User>; // Opdater bruger password
+  updateUser(id: number, data: { username?: string; name?: string; isWorker?: boolean; isAdmin?: boolean; birthday?: Date | null; password?: string }): Promise<User>; // Opdater bruger
+  deleteUser(id: number): Promise<void>;                            // Slet bruger
+  
+  // =================================================================
+  // KUNDE AUTENTIFICERING
+  // =================================================================
+  getCustomerUser(customerId: number): Promise<User | undefined>;    // Hent kunde bruger konto
+  createCustomerUser(customer: Customer, caseNumber: string): Promise<User>; // Opret kunde bruger konto
+  createOrUpdateCustomerUsers(): Promise<void>;                     // Opret/opdater alle kunde bruger konti
+  getCaseByNumber(caseNumber: string): Promise<Case | undefined>;    // Hent sag via sagsnummer
+  
+  // =================================================================
+  // STATISTIK OG ALARM OPERATIONER
+  // =================================================================
+  getTotalCases(): Promise<number>;                                  // Total antal sager
+  getAlarmCases(): Promise<Case[]>;                                  // Hent sager i alarm (legacy)
+  getCasesInAlarm(): Promise<Case[]>;                               // Hent sager i alarm (ny implementering)
+  getStatusCounts(): Promise<Record<string, number>>;               // Antal sager per status
+  deleteCustomer(id: number): Promise<void>;                        // Slet kunde
 }
 
+// =============================================================================
+// DATABASE SESSION STORE KONFIGURATION
+// =============================================================================
+// PostgreSQL-baseret session store til Express sessions
 const PostgresSessionStore = connectPg(session);
 
+// =============================================================================
+// HOVEDDATABASE STORAGE KLASSE
+// =============================================================================
+// Implementerer alle database operationer for SagsHub systemet
 export class DatabaseStorage implements IStorage {
-  sessionStore: session.Store;
-  dbConfig: any;
+  sessionStore: session.Store;                               // Express session store
+  dbConfig: any;                                             // Database konfiguration
 
+  // =================================================================
+  // KONSTRUKTOR
+  // =================================================================
+  // Initialiserer database forbindelse og session store
   constructor() {
+    // Database konfiguration fra miljøvariabler
     const dbConfig = {
-      user: process.env.DB_USER || 'postgres',
-      host: process.env.DB_HOST || 'localhost',
-      database: process.env.DB_NAME || 'sagshub',
-      password: process.env.DB_PASSWORD || 'wa2657321',
-      port: parseInt(process.env.DB_PORT || '5432'),
+      user: process.env.DB_USER || 'postgres',              // Database bruger
+      host: process.env.DB_HOST || 'localhost',             // Database host
+      database: process.env.DB_NAME || 'sagshub',            // Database navn
+      password: process.env.DB_PASSWORD || 'wa2657321',       // Database password
+      port: parseInt(process.env.DB_PORT || '5432'),          // Database port
     };
     this.dbConfig = dbConfig;
+    
+    // Konfigurerer PostgreSQL session store til Express
     this.sessionStore = new PostgresSessionStore({
-      conObject: dbConfig,
-      createTableIfMissing: true,
+      conObject: dbConfig,                                   // Database forbindelseskonfiguration
+      createTableIfMissing: true,                           // Opret session tabel automatisk hvis den mangler
     });
-    // Log databaseforbindelse ved opstart
+    
+    // Logger database konfiguration ved opstart (for debugging)
     console.log('Forbinder til database:', dbConfig);
   }
 
+  // =================================================================
+  // BRUGER OPERATIONER
+  // =================================================================
+  
+  // Henter enkelt bruger baseret på bruger ID
   async getUser(id: number): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.id, id));
+    const [user] = await db.select().from(users).where(eq(users.id, id)); // SELECT * FROM users WHERE id = ?
     return user;
   }
 
+  // Henter bruger baseret på brugernavn (til login)
   async getUserByUsername(username: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.username, username));
+    const [user] = await db.select().from(users).where(eq(users.username, username)); // SELECT * FROM users WHERE username = ?
     return user;
   }
 
+  // Opretter ny bruger i systemet
   async createUser(userData: Omit<User, "id">): Promise<User> {
     const [user] = await db
-      .insert(users)
-      .values(userData)
-      .returning();
+      .insert(users)                                         // INSERT INTO users
+      .values(userData)                                      // VALUES (bruger data)
+      .returning();                                          // RETURNING * (PostgreSQL specifik)
     return user;
   }
 
+  // Henter alle brugere (til administration)
   async getUsers(): Promise<User[]> {
-    return db.select().from(users);
+    return db.select().from(users);                          // SELECT * FROM users
   }
 
+  // =================================================================
+  // KUNDE OPERATIONER
+  // =================================================================
+  
+  // Henter alle kunder
   async getCustomers(): Promise<Customer[]> {
-    return db.select().from(customers);
+    return db.select().from(customers);                      // SELECT * FROM customers
   }
 
+  // Henter specifik kunde baseret på ID
   async getCustomer(id: number): Promise<Customer | undefined> {
-    const [customer] = await db.select().from(customers).where(eq(customers.id, id));
+    const [customer] = await db.select().from(customers).where(eq(customers.id, id)); // SELECT * FROM customers WHERE id = ?
     return customer;
   }
 
+  // Opretter ny kunde med automatiske timestamps
   async createCustomer(customerData: Omit<Customer, "id" | "createdAt" | "updatedAt">): Promise<Customer> {
     const [customer] = await db
-      .insert(customers)
+      .insert(customers)                                     // INSERT INTO customers
       .values({
-        ...customerData,
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        ...customerData,                                     // Alle kunde data
+        createdAt: new Date(),                               // Automatisk created timestamp
+        updatedAt: new Date(),                               // Automatisk updated timestamp
       })
-      .returning();
+      .returning();                                          // RETURNING * (returnerer det nye record)
     return customer;
   }
 
+  // Opdaterer eksisterende kunde
   async updateCustomer(
     id: number,
     customerData: Partial<Omit<Customer, "id" | "createdAt" | "updatedAt">>
   ): Promise<Customer | undefined> {
     const [customer] = await db
-      .update(customers)
+      .update(customers)                                     // UPDATE customers
       .set({
-        ...customerData,
-        updatedAt: new Date(),
+        ...customerData,                                     // Kunde data der skal opdateres
+        updatedAt: new Date(),                               // Opdaterer timestamp automatisk
       })
-      .where(eq(customers.id, id))
-      .returning();
+      .where(eq(customers.id, id))                          // WHERE id = ?
+      .returning();                                          // RETURNING * (returnerer det opdaterede record)
     return customer;
   }
 
+  // Søger kunder baseret på navn, telefon eller email
   async searchCustomers(searchTerm: string): Promise<Customer[]> {
-    if (!searchTerm?.trim()) {
+    if (!searchTerm?.trim()) {                               // Returnerer tom array hvis ingen søgeterm
       return [];
     }
 
     try {
-      const searchTermTrimmed = searchTerm.trim();
+      const searchTermTrimmed = searchTerm.trim();           // Fjerner whitespace fra søgeterm
       console.log('Søger efter kunder med term:', searchTermTrimmed);
       
-      // Use raw SQL to ensure proper search functionality
+      // Bruger raw SQL for bedre søgefunktionalitet med ILIKE (case insensitive)
       let query = `
         SELECT id, name, phone, email, address, city, postal_code, notes, created_at, updated_at
         FROM customers 
         WHERE (
-          name ILIKE '%${searchTermTrimmed}%' OR
-          phone ILIKE '%${searchTermTrimmed}%' OR
-          email ILIKE '%${searchTermTrimmed}%'
+          name ILIKE '%${searchTermTrimmed}%' OR           -- Søger i navn (case insensitive)
+          phone ILIKE '%${searchTermTrimmed}%' OR          -- Søger i telefonnummer
+          email ILIKE '%${searchTermTrimmed}%'             -- Søger i email
         )
       `;
       
-      // Add ID search if it's a number
+      // Tilføjer ID søgning hvis søgetermen er et nummer
       if (/^\d+$/.test(searchTermTrimmed)) {
-        query += ` OR id = ${Number(searchTermTrimmed)}`;
+        query += ` OR id = ${Number(searchTermTrimmed)}`;    // Direkte ID match
       }
       
-      query += ` ORDER BY name LIMIT 10`;
+      query += ` ORDER BY name LIMIT 10`;                   // Sorterer alfabetisk og begrænser til 10 resultater
       
       console.log('Executing customer search query:', query);
-      const result = await db.execute(sql([query]));
+      const result = await db.execute(sql([query]));        // Udfører raw SQL query
+      
+      // Mapper database resultater til Customer objekter
       const customers = result.rows.map((row: any) => ({
         id: row.id,
         name: row.name,
@@ -319,51 +434,60 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
+  // =================================================================
+  // SAG OPERATIONER
+  // =================================================================
+  
+  // Henter alle sager med kunde information (joinede data)
   async getCases(customerId?: number): Promise<CaseWithCustomer[]> {
     try {
+      // Bygger query med joins til customer og user tabeller
       const query = db
         .select({
-          id: cases.id,
-          caseNumber: cases.caseNumber,
-          customerId: cases.customerId,
-          customerName: customers.name,
-          title: cases.title,
-          description: cases.description,
-          treatment: cases.treatment,
-          priority: cases.priority,
-          deviceType: cases.deviceType,
-          accessories: cases.accessories,
-          importantNotes: cases.importantNotes,
-          loginInfo: cases.loginInfo,
-          purchasedHere: cases.purchasedHere,
-          purchaseDate: cases.purchaseDate,
-          status: cases.status,
-          createdAt: cases.createdAt,
-          updatedAt: cases.updatedAt,
-          createdBy: users.name,
+          id: cases.id,                                      // Sag ID
+          caseNumber: cases.caseNumber,                      // Sagsnummer (f.eks. SAG-2025-001)
+          customerId: cases.customerId,                      // Kunde ID reference
+          customerName: customers.name,                      // Joinede kunde navn
+          title: cases.title,                                // Sag titel
+          description: cases.description,                    // Sag beskrivelse
+          treatment: cases.treatment,                        // Behandlingstype (reparation, garanti, etc.)
+          priority: cases.priority,                          // Prioritet (lav, normal, høj)
+          deviceType: cases.deviceType,                      // Enhedstype (computer, telefon, etc.)
+          accessories: cases.accessories,                    // Tilbehør
+          importantNotes: cases.importantNotes,              // Vigtige noter
+          loginInfo: cases.loginInfo,                        // Login informationer
+          purchasedHere: cases.purchasedHere,                // Købt her (boolean)
+          purchaseDate: cases.purchaseDate,                  // Købsdato
+          status: cases.status,                              // Sag status
+          createdAt: cases.createdAt,                        // Oprettelsesdato
+          updatedAt: cases.updatedAt,                        // Sidste opdatering
+          createdBy: users.name,                             // Joinede bruger navn (hvem oprettede sagen)
         })
-        .from(cases)
-        .leftJoin(customers, eq(cases.customerId, customers.id))
-        .leftJoin(users, eq(cases.createdBy, users.id))
-        .orderBy(desc(cases.createdAt));
+        .from(cases)                                         // Hovedtabel: cases
+        .leftJoin(customers, eq(cases.customerId, customers.id)) // LEFT JOIN customers for kunde info
+        .leftJoin(users, eq(cases.createdBy, users.id))     // LEFT JOIN users for bruger info
+        .orderBy(desc(cases.createdAt));                    // Sorterer efter nyeste først
 
+      // Tilføjer filter hvis der skal vises sager for specifik kunde
       if (customerId) {
-        query.where(eq(cases.customerId, customerId));
+        query.where(eq(cases.customerId, customerId));      // WHERE customer_id = ?
       }
 
-      const result = await query;
+      const result = await query;                            // Udfører query
 
+      // Mapper resultater og sikrer fallback værdier
       return result.map(row => ({
         ...row,
-        customerName: row.customerName || `Kunde #${row.customerId}`,
-        createdBy: row.createdBy || "System",
+        customerName: row.customerName || `Kunde #${row.customerId}`, // Fallback hvis kunde navn mangler
+        createdBy: row.createdBy || "System",               // Fallback hvis bruger navn mangler
       }));
     } catch (error) {
       console.error("Error in getCases:", error);
-      return [];
+      return [];                                             // Returnerer tom array ved fejl
     }
   }
 
+  // Henter specifik sag baseret på sagsnummer (string)
   async getCaseByNumber(caseNumber: string): Promise<Case | undefined> {
     try {
       const [case_] = await db

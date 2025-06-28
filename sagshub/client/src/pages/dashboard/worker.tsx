@@ -119,7 +119,8 @@ export default function WorkerDashboard() {
   const { data: allCasesData, isLoading: allCasesLoading } = useCasesQuery({
     page: 1,
     pageSize: 10000, // Hent alle for statistik
-    enabled: true
+    enabled: true,
+    includeCompleted: true
   });
 
   // Hent customers til statistik
@@ -156,12 +157,12 @@ export default function WorkerDashboard() {
     },
   });
 
-  // Beregn gennemsnitlig sagstid
+  // Beregn gennemsnitlig sagstid denne måned vs. sidste måned
   const calculateAvgCaseTime = () => {
     if (!allCasesData?.items) return { thisMonth: 0, lastMonth: 0 };
     
     const completedCases = allCasesData.items.filter((c: any) => 
-      c.status === 'completed' || c.status === 'ready_for_pickup'
+      c.status === 'completed'
     );
 
     const thisMonth = format(new Date(), 'yyyy-MM');
@@ -180,7 +181,8 @@ export default function WorkerDashboard() {
     const calculateAvg = (cases: any[]) => {
       if (cases.length === 0) return 0;
       const totalDays = cases.reduce((sum, c) => {
-        return sum + differenceInDays(parseISO(c.updatedAt), parseISO(c.createdAt));
+        const days = differenceInDays(parseISO(c.updatedAt), parseISO(c.createdAt));
+        return sum + Math.max(days, 1); // Minimum 1 dag
       }, 0);
       return Math.round(totalDays / cases.length);
     };
@@ -350,7 +352,7 @@ export default function WorkerDashboard() {
             </div>
 
             {/* Sager tabs og liste */}
-            <div className="bg-white/80 backdrop-blur-sm rounded-lg shadow-sm">
+                          <div className="bg-card/80 backdrop-blur-sm rounded-lg shadow-sm dark:shadow-lg">
               <Tabs defaultValue="all" className="w-full">
                 <div className="flex">
                   <div className="w-64 border-r">
@@ -386,7 +388,7 @@ export default function WorkerDashboard() {
 
                   <div className="flex-1 p-4">
                     <TabsContent value="all" className="m-0">
-                      <div className="bg-white/80 backdrop-blur-sm rounded-lg shadow-sm p-4">
+                      <div className="bg-card/80 backdrop-blur-sm rounded-lg shadow-sm dark:shadow-lg p-4">
                         <CaseList 
                           searchTerm={searchTerm}
                           statusCounts={statusCounts}
@@ -414,7 +416,7 @@ export default function WorkerDashboard() {
                       ready_for_pickup: "Klar til afhentning"
                     }).map(([statusKey, statusLabel]) => (
                       <TabsContent key={statusKey} value={statusKey} className="m-0">
-                        <div className="bg-white/80 backdrop-blur-sm rounded-lg shadow-sm p-4">
+                        <div className="bg-card/80 backdrop-blur-sm rounded-lg shadow-sm dark:shadow-lg p-4">
                           <CaseList 
                             searchTerm={searchTerm}
                             status={statusKey}

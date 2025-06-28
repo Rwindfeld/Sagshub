@@ -7,7 +7,6 @@
     "skipLibCheck": true,
     "noEmit": true,
 
-    /* Bundler mode */
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
     "resolveJsonModule": true,
@@ -15,11 +14,10 @@
     "noEmitOnError": false,
     "jsx": "react-jsx",
 
-    /* Linting - Mindre strenge indstillinger */
-    "strict": false,
-    "noUnusedLocals": false,
-    "noUnusedParameters": false,
-    "noFallthroughCasesInSwitch": false,
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
     "noImplicitAny": false,
     "noImplicitReturns": false,
     "noImplicitThis": false,
@@ -37,6 +35,15 @@
       "@shared/*": ["../shared/*"]
     }
   },
-  "include": ["src"],
-  "references": [{ "path": "./tsconfig.node.json" }]
+  
+  "include": [
+    "src",
+    "vite.config.ts"
+  ],
+  
+  "references": [
+    { 
+      "path": "./tsconfig.node.json"
+    }
+  ]
 } 

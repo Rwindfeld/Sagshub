@@ -1,16 +1,22 @@
 {
-  "name": "shared",
+  "name": "@shared/schema",
   "version": "1.0.0",
   "type": "module",
+  
   "main": "dist/schema.js",
   "types": "dist/schema.d.ts",
+  
   "scripts": {
-    "build": "tsc"
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist"
   },
-  "keywords": [],
-  "author": "",
+  
+  "keywords": ["schema", "types", "drizzle", "validation"],
+  "author": "SagsHub Team",
   "license": "ISC",
-  "description": "",
+  "description": "Shared types og schemas for SagsHub system",
+  
   "dependencies": {
     "drizzle-orm": "^0.41.0",
     "drizzle-zod": "^0.7.1",

@@ -1,0 +1,321 @@
+# SagsHub Udviklingsdagbog - Fra Ide til Færdigt System
+
+## 🚀 Projektets Start og Vision
+
+### Brainstorming med TJ Data
+Først skulle jeg brainstorme sammen med TJ Data og finde ud af hvad de ønskede og deres behov. Vi identificerede følgende problemer:
+- Manuelle processer i reparationsworkflow
+- Ingen central case tracking
+- Svær kommunikation mellem medarbejdere og kunder
+- Manglende overblik over sagsstatus og historik
+
+### Teknologivalg - Fra Python til TypeScript
+Jeg startede med at overveje Python, men opdagede hurtigt at det ikke fungerede for mig, især med begrænsede biblioteker til at designe en brugbar, skalerbar webapplikation. Særligt da Mike fra TJ Data kun havde kendskab til JavaScript og TypeScript, gav det mest mening at gå den vej.
+
+Jeg begyndte at finde mine teknologier og hvad der passede bedst sammen:
+- **Frontend:** React + TypeScript for type-sikkerhed
+- **Backend:** Node.js + Express for JavaScript-konsistens
+- **Database:** PostgreSQL for robusthed
+- **ORM:** Drizzle for type-safe database operations
+
+---
+
+## 📋 Sprint 0 - Krav og Planlægning
+
+### Kravspecifikation og Systemanalyse
+Jeg analyserede TJ Datas behov og definerede:
+- **Mockups:** Wireframes for brugergrænseflader
+- **Tech Stack:** Valg af teknologier baseret på skalerbarhed
+- **Moduler:** Opdeling i frontend, backend, og database lag
+
+### Arkitekturplanlægning
+Jeg besluttede en tre-lags arkitektur:
+1. **Presentation Layer** (React Frontend)
+2. **Business Logic Layer** (Express API)
+3. **Data Layer** (PostgreSQL Database)
+
+---
+
+## 🗄️ Sprint 1 - Database og Arkitektur
+
+### Første Fil: `schema.ts`
+Jeg startede med backend og kodede først filen `schema.ts` fordi det var nødvendigt at have en database struktur før alt andet. I denne fil definerede jeg:
+
+```typescript
+// Basis tabeller for case management
+export const cases = pgTable('cases', {
+  id: serial('id').primaryKey(),
+  caseNumber: varchar('case_number', { length: 20 }).notNull(),
+  customerName: varchar('customer_name', { length: 255 }).notNull(),
+  deviceInfo: varchar('device_info', { length: 255 }),
+  description: text('description'),
+  status: varchar('status', { length: 50 }).default('created'),
+  createdAt: timestamp('created_at').defaultNow(),
+});
+```
+
+### Derefter: `db.ts`
+Jeg lavede filen `db.ts` fordi jeg havde brug for database forbindelse. I den er der:
+- PostgreSQL connection setup med Drizzle
+- Connection pooling konfiguration
+- Environment variable håndtering
+
+### ER-Diagram Design
+Jeg designede relationer mellem:
+- **Cases** (hovedentitet)
+- **Customers** (kunde information)
+- **Status History** (sporingslog)
+- **Users** (medarbejder management)
+
+---
+
+## 🔐 Sprint 2 - Login og Autentificering
+
+### `auth.ts` - Autentificering
+Jeg kodede `auth.ts` fordi systemet havde brug for sikker brugeradgang. Filen indeholder:
+- bcrypt password hashing
+- JWT token generation
+- Session management med express-session
+- Passport.js integration
+
+```typescript
+// Password hashing og verifikation
+export const hashPassword = async (password: string): Promise<string> => {
+  return await bcrypt.hash(password, 10);
+};
+
+export const verifyPassword = async (password: string, hash: string): Promise<boolean> => {
+  return await bcrypt.compare(password, hash);
+};
+```
+
+### Login System Implementation
+- Sikker session håndtering
+- Cookie-baseret autentificering
+- Protection af API endpoints
+
+---
+
+## 📊 Sprint 3 - CRUD-funktioner: Kunder og Sager
+
+### `routes/cases.ts` - Case Management
+Jeg lavede denne fil for at håndtere alle case operationer. Den indeholder:
+- **CREATE:** Opret nye reparationssager
+- **READ:** Hent case detaljer og lister
+- **UPDATE:** Opdater case status og information
+- **DELETE:** Fjern sager (admin only)
+
+```typescript
+// Eksempel på case oprettelse
+router.post('/api/cases', async (req, res) => {
+  const newCase = await db.insert(cases).values({
+    caseNumber: generateCaseNumber(),
+    customerName: req.body.customerName,
+    deviceInfo: req.body.deviceInfo,
+    description: req.body.description,
+  }).returning();
+});
+```
+
+### `routes/customers.ts` - Kunde Management
+Separat customer management for at holde data normaliseret og genbrugeligt.
+
+---
+
+## 📈 Sprint 4 - Statussystem og Historik
+
+### `status-history.ts` - Historik Tracking
+Jeg implementerede denne fordi det var kritisk at kunne spore alle ændringer i sagerne. Systemet logger:
+- Hvem der lavede ændringen
+- Hvornår det skete
+- Hvad der blev ændret
+- Kommentarer til ændringen
+
+### Status Flow System
+Definerede sags-statuser:
+1. `created` - Sag oprettet
+2. `in_progress` - Under reparation
+3. `waiting_parts` - Venter på dele
+4. `offer_created` - Tilbud lavet
+5. `completed` - Færdig
+6. `ready_for_pickup` - Klar til afhentning
+
+---
+
+## 🎨 Sprint 5 - Dashboard og Brugerflows
+
+### Frontend Opstart
+Jeg startede med `App.tsx` fordi det er React applikationens indgangspunkt:
+
+```typescript
+// Router setup og grundlæggende struktur
+function App() {
+  return (
+    <AuthProvider>
+      <QueryClientProvider client={queryClient}>
+        <Router>
+          <Routes>
+            <Route path="/login" component={Login} />
+            <Route path="/dashboard" component={Dashboard} />
+          </Routes>
+        </Router>
+      </QueryClientProvider>
+    </AuthProvider>
+  );
+}
+```
+
+### Dashboard Komponenter
+- **Worker Dashboard:** Medarbejder case oversigt
+- **Admin Dashboard:** Management og statistikker
+- **Case filtering:** Status-baseret filtrering
+
+---
+
+## 🔧 Sprint 6 - Udvidelser: RMA og Delebestilling
+
+### RMA System Implementation
+Jeg tilføjede Return Material Authorization funktionalitet fordi TJ Data havde brug for at håndtere returneringer og garantisager.
+
+### `components/case-form.tsx`
+Forbedret formular med:
+- Validering med Zod schemas
+- File upload mulighed
+- Status change tracking
+
+---
+
+## 📊 Sprint 7 - Analyse og Statistik
+
+### `pages/dashboard/admin.tsx` - Statistik Dashboard
+Jeg implementerede omfattende analytics fordi ledelsen havde brug for indsigt:
+
+```typescript
+// Statistik beregninger
+const completedCases = cases.filter(c => 
+  ['completed', 'ready_for_pickup'].includes(c.status)
+);
+
+const averageResolutionTime = calculateAverageTime(completedCases);
+const monthlyStats = groupCasesByMonth(cases);
+```
+
+### Charts og Visualisering
+- Recharts integration for grafer
+- Monthly case trends
+- Status distribution
+- Performance metrics
+
+---
+
+## 🏪 Sprint 8 - Lagerstyring og Notifikationer
+
+### Live Activity System
+Jeg implementerede real-time updates fordi teamet havde brug for øjeblikkelig kommunikation:
+
+### `components/live-activity-panel.tsx`
+WebSocket integration for:
+- Real-time case updates
+- Status change notifications
+- Cross-user communication
+
+```typescript
+// WebSocket connection
+const ws = new WebSocket('ws://localhost:3000');
+ws.onmessage = (event) => {
+  const activity = JSON.parse(event.data);
+  setActivities(prev => [activity, ...prev]);
+};
+```
+
+---
+
+## 🧪 Sprint 9 - Test og Optimering
+
+### Database Optimering
+- Index tilføjelser for bedre performance
+- Query optimering
+- Connection pooling fine-tuning
+
+### Sikkerhedshærdning
+- SQL injection prevention
+- XSS protection
+- CSRF tokens
+- Input validation med Zod
+
+---
+
+## 📖 Sprint 10 - Dokumentation og Vejledning
+
+### Brugervejledning
+Oprettede omfattende dokumentation:
+- `docs/INSTALLATION.md` - Setup guide
+- `docs/NETWORK_ACCESS.md` - Netværkskonfiguration
+- API dokumentation
+
+### Code Documentation
+JSDoc kommentarer og README filer for alle moduler.
+
+---
+
+## 🏁 Sprint 11 - Finalisering og Aflevering
+
+### Performance Optimering
+- Bundle size optimering
+- Lazy loading implementation
+- Image optimization
+
+### Dark Mode Implementation 🌙
+I den sidste fase tilføjede jeg dark mode fordi moderne applications forventer det:
+
+### `context/theme-context.tsx`
+```typescript
+// Theme management
+export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
+  const [theme, setTheme] = useState<Theme>(() => {
+    const stored = localStorage.getItem('theme');
+    return (stored as Theme) || 'system';
+  });
+};
+```
+
+### `components/theme-toggle.tsx`
+Toggle komponent med:
+- Måne/sol ikoner
+- Smooth transitions
+- System preference detection
+
+---
+
+## 🎯 Nuværende SagsHub Status
+
+### Teknisk Arkitektur
+- **Frontend:** React 18 + TypeScript + Tailwind CSS
+- **Backend:** Node.js + Express + TypeScript  
+- **Database:** PostgreSQL + Drizzle ORM
+- **Real-time:** WebSockets for live updates
+- **Styling:** Tailwind CSS + shadcn/ui komponenter
+
+### Core Features
+✅ **Case Management** - Komplet CRUD for reparationssager  
+✅ **User Authentication** - Sikker login med sessions  
+✅ **Status Tracking** - Fuldt sporbart workflow  
+✅ **Live Activity** - Real-time updates på tværs af brugere  
+✅ **Admin Dashboard** - Statistikker og management  
+✅ **Dark Mode** - Moderne UI/UX  
+✅ **Network Access** - Multi-device adgang  
+
+### Deployment og Skalerbarhed
+- Modulær arkitektur for nem skalering
+- Environment-baseret konfiguration
+- Production-ready setup med PM2
+- Database migrationer for sikre updates
+
+### Læringspunkter
+1. **TypeScript** gav bedre code quality og færre runtime errors
+2. **Drizzle ORM** kombinerede type-safety med SQL performance
+3. **WebSockets** var essentielt for teamwork features
+4. **React Query** gjorde state management meget nemmere
+5. **Tailwind CSS** accelererede UI udvikling betydeligt
+
+SagsHub er nu et fuldt funktionelt case management system der løser TJ Datas oprindelige problemer og giver dem en skalerbar platform for fremtidig vækst! 🚀 

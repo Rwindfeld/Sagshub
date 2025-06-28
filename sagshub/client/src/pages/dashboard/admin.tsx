@@ -1,26 +1,49 @@
-import { useAuth } from "@/context/auth-context";
-import { useQuery, useMutation } from "@tanstack/react-query";
+// =============================================================================
+// SAGSHUB ADMINISTRATIONSSIDE
+// =============================================================================
+// Denne komponent implementerer den centrale administrationsside og indeholder:
+// - Brugeradministration (opret, rediger, slet medarbejdere)
+// - Systemstatistikker og rapporter med grafer
+// - Kundedetaljer og kundens historie
+// - PDF eksport af kundedata
+// - Responsiv dashboard med tabs og paginering
+// - Omfattende datavisualiseringer med Recharts
+// =============================================================================
+
+// Import af autentificering og React Query hooks
+import { useAuth } from "@/context/auth-context";              // Authentication context
+import { useQuery, useMutation } from "@tanstack/react-query"; // TanStack Query for data fetching
+
+// Import af schema og type definitioner
 import { User, InsertUser, insertUserSchema, createUserSchema, updateUserSchema, CaseStatus, PriorityType } from "@shared/schema";
-import { useToast } from "@/hooks/use-toast";
-import { Button } from "@/components/ui/button";
-import { Plus, Trash2, Edit2, Info, BarChart as BarChartIcon, FileText, Clock, Users, Activity, Package, AlertCircle, CalendarIcon, ChevronLeft, ChevronRight } from "lucide-react";
+
+// Import af UI hooks og komponenter
+import { useToast } from "@/hooks/use-toast";                  // Toast notifikationer
+import { Button } from "@/components/ui/button";               // Button komponent
+
+// Import af ikoner fra Lucide React
+import { Plus, Trash2, Edit2, Info, BarChart as BarChartIcon, FileText, Clock, Users, Activity, Package, AlertCircle, CalendarIcon, ChevronLeft, ChevronRight, ArrowUpRight, ArrowDownRight } from "lucide-react";
+
+// Import af UI komponenter til tabeller og layout
 import {
-  Table,
+  Table,                                                       // Tabel komponenter
   TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+
 import {
-  Sheet,
+  Sheet,                                                       // Side panel komponenter
   SheetContent,
   SheetHeader,
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+
 import {
-  AlertDialog,
+  AlertDialog,                                                 // Bekræftelses dialog komponenter
   AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
@@ -30,193 +53,229 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
+
+// Import af form håndtering
+import { useForm } from "react-hook-form";                     // React Hook Form
+import { zodResolver } from "@hookform/resolvers/zod";         // Zod validation resolver
+
 import {
-  Form,
+  Form,                                                        // Form komponenter
   FormControl,
   FormField,
   FormItem,
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
-import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Checkbox } from "@/components/ui/checkbox";
-import { MenuLayout } from "@/components/menu-layout";
-import { useState, useEffect } from "react";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import CustomerSearchInput from "@/components/customer-search-input";
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
-import { useCasesQuery } from '@/queries/cases';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
-import { format, parseISO, subMonths } from 'date-fns';
-import { differenceInDays } from 'date-fns';
-import { useAllCustomersQuery } from '@/queries/customers';
-import { useRMAsQuery } from '@/queries/rma';
-import { useOrdersQuery } from '@/queries/orders';
+
+import { Input } from "@/components/ui/input";                 // Input felt
+import { apiRequest, queryClient } from "@/lib/queryClient";   // API utility functions
+import { Checkbox } from "@/components/ui/checkbox";           // Checkbox komponent
+import { MenuLayout } from "@/components/menu-layout";         // Layout med menu
+
+// Import af React hooks og state management
+import { useState, useEffect } from "react";                   // React state hooks
+
+// Import af UI komponenter til tabs og søgning
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"; // Tab navigation
+import CustomerSearchInput from "@/components/customer-search-input"; // Kunde søgning
+
+// Import af PDF generation biblioteker
+import jsPDF from 'jspdf';                                     // PDF generation
+import autoTable from 'jspdf-autotable';                      // PDF tabel generation
+
+// Import af query hooks til data fetching
+import { useCasesQuery } from '@/queries/cases';               // Sager query
+import { useAllCustomersQuery } from '@/queries/customers';    // Kunder query
+import { useRMAsQuery } from '@/queries/rma';                  // RMA query
+import { useOrdersQuery } from '@/queries/orders';             // Ordrer query
+
+// Import af chart komponenter til datavisualisering
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'; // Recharts bibliotek
+
+// Import af dato utilities
+import { format, parseISO, subMonths } from 'date-fns';        // Dato formatering
+import { differenceInDays } from 'date-fns';                  // Dato beregninger
+
+// Import af UI komponenter til dropdowns og kalender
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/utils';                              // CSS class utility
 
+// =============================================================================
+// UTILITY FUNKTIONER TIL STATUS LABELS
+// =============================================================================
+
+// Konverterer status keys til læsbare danske labels
 function getStatusLabel(key: string) {
   const labels: Record<string, string> = {
-    created: "Oprettet",
-    in_progress: "I gang",
-    offer_created: "Tilbud oprettet",
-    waiting_customer: "Venter på kunde",
-    offer_accepted: "Tilbud accepteret",
-    offer_rejected: "Tilbud afvist",
-    waiting_parts: "Venter på dele",
-    preparing_delivery: "Forbereder udlevering",
-    ready_for_pickup: "Klar til afhentning",
-    completed: "Afsluttet",
+    created: "Oprettet",                                       // Ny sag oprettet
+    in_progress: "I gang",                                     // Under behandling
+    offer_created: "Tilbud oprettet",                          // Tilbud sendt til kunde
+    waiting_customer: "Venter på kunde",                       // Afventer kunde respons
+    offer_accepted: "Tilbud accepteret",                       // Kunde accepterede tilbud
+    offer_rejected: "Tilbud afvist",                           // Kunde afviste tilbud
+    waiting_parts: "Venter på dele",                           // Bestilling af reservedele
+    preparing_delivery: "Forbereder udlevering",               // Pakker/klargør til kunde
+    ready_for_pickup: "Klar til afhentning",                   // Kunde kan hente
+    completed: "Afsluttet",                                    // Sag lukket
   };
-  return labels[key] || key;
+  return labels[key] || key;                                   // Fallback til original key
 }
 
+// Konverterer prioritet keys til læsbare danske labels
 function getPriorityLabel(key: string) {
   const labels: Record<string, string> = {
-    free_diagnosis: "Gratis diagnose",
-    four_days: "4-dages prioritet",
-    first_priority: "Første prioritet",
-    asap: "Haster (ASAP)",
+    free_diagnosis: "Gratis diagnose",                         // Standard gratis check
+    four_days: "4-dages prioritet",                            // Levering inden 4 dage
+    first_priority: "Første prioritet",                        // Højeste prioritet
+    asap: "Haster (ASAP)",                                     // Akut - så hurtigt som muligt
   };
-  return labels[key] || key;
+  return labels[key] || key;                                   // Fallback til original key
 }
 
+// =============================================================================
+// HOVEDAD ADMIN KOMPONENT
+// =============================================================================
 export default function AdminPage() {
-  // 1. Context hooks
-  const { user } = useAuth();
-  const { toast } = useToast();
+  // =================================================================
+  // CONTEXT OG HOOKS INITIALISERING
+  // =================================================================
+  
+  // Henter bruger info og toast funktionalitet fra contexts
+  const { user } = useAuth();                                  // Nuværende bruger (fra auth context)
+  const { toast } = useToast();                               // Toast notifikationer
 
-  // 3. Query hooks (FLYTTET OP)
+  // =================================================================
+  // DATA FETCHING QUERIES
+  // =================================================================
+  
+  // Henter alle systembrugere (medarbejdere)
   const { data: users, isLoading } = useQuery<User[]>({
-    queryKey: ["/api/users"],
+    queryKey: ["/api/users"],                                  // Cache key til TanStack Query
     queryFn: async () => {
-      const res = await apiRequest("GET", "/api/users");
-      return res.json();
+      const res = await apiRequest("GET", "/api/users");       // API kald til backend
+      return res.json();                                       // Parser JSON response
     },
   });
 
-  // 2. State hooks
-  const [editingUser, setEditingUser] = useState<User | null>(null);
-  const [isSheetOpen, setIsSheetOpen] = useState(false);
+  // =================================================================
+  // COMPONENT STATE MANAGEMENT
+  // =================================================================
+  
+  // State til brugeradministration
+  const [editingUser, setEditingUser] = useState<User | null>(null); // Bruger der redigeres (null = ny bruger)
+  const [isSheetOpen, setIsSheetOpen] = useState(false);      // Side panel åben/lukket
+  
+  // State til tab navigation (admins starter på users, andre på stats)
   const [tab, setTab] = useState(user?.isAdmin ? "users" : "stats");
-  const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(null);
-  const [isSearchingCustomer, setIsSearchingCustomer] = useState(false);
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [showFinalConfirm, setShowFinalConfirm] = useState(false);
-  const [statusTypes, setStatusTypes] = useState(Object.values(CaseStatus));
-  const [priorityTypes, setPriorityTypes] = useState(Object.values(PriorityType));
-  const [editStatus, setEditStatus] = useState<string | null>(null);
-  const [editPriority, setEditPriority] = useState<string | null>(null);
-  const [newStatus, setNewStatus] = useState("");
-  const [newPriority, setNewPriority] = useState("");
+  
+  // State til kundedetaljer sektion
+  const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(null); // Valgt kunde til detaljer
+  const [isSearchingCustomer, setIsSearchingCustomer] = useState(false); // Søgning i gang
+  
+  // State til sletning af kunde (dobbelt bekræftelse)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false); // Første bekræftelse
+  const [showFinalConfirm, setShowFinalConfirm] = useState(false); // Final bekræftelse
 
-  // PAGINATION STATE
-  const [staffPage, setStaffPage] = useState(1);
-  const [customerPage, setCustomerPage] = useState(1);
-  const USERS_PER_PAGE = 5;
+  // =================================================================
+  // PAGINATION STATE TIL MEDARBEJDERLISTE
+  // =================================================================
+  const [staffPage, setStaffPage] = useState(1);              // Nuværende side nummer
+  const USERS_PER_PAGE = 5;                                   // Antal brugere per side
 
-  // FILTRER BRUGERE
+  // Filtrerer kun medarbejdere og admins (ikke kunder)
   const staff = (users || []).filter(u => u.isWorker || u.isAdmin);
-  const customers = (users || []).filter(u => !u.isWorker && !u.isAdmin);
 
-  // PAGINERET DATA
+  // Beregner paginerede data for medarbejderliste
   const paginatedStaff = staff.slice((staffPage-1)*USERS_PER_PAGE, staffPage*USERS_PER_PAGE);
-  const paginatedCustomers = customers.slice((customerPage-1)*USERS_PER_PAGE, customerPage*USERS_PER_PAGE);
-  const staffTotalPages = Math.ceil(staff.length / USERS_PER_PAGE) || 1;
-  const customerTotalPages = Math.ceil(customers.length / USERS_PER_PAGE) || 1;
+  const staffTotalPages = Math.ceil(staff.length / USERS_PER_PAGE) || 1; // Total antal sider (minimum 1)
 
-  // 4. Query hooks
+  // =================================================================
+  // KUNDE DETALJER QUERIES
+  // =================================================================
+  
+  // Henter kunde information for valgt kunde
   const { data: customerData } = useQuery({
-    queryKey: ["/api/customers", selectedCustomerId],
+    queryKey: ["/api/customers", selectedCustomerId],          // Cache key inkluderer kunde ID
     queryFn: async () => {
-      if (!selectedCustomerId) return null;
+      if (!selectedCustomerId) return null;                    // Kør ikke hvis ingen kunde valgt
       const res = await apiRequest("GET", `/api/customers/${selectedCustomerId}`);
       return res.json();
     },
-    enabled: !!selectedCustomerId,
+    enabled: !!selectedCustomerId,                             // Kun aktiv når kunde er valgt
   });
 
+  // Henter alle sager for valgt kunde
   const { data: customerCases } = useQuery({
-    queryKey: ["/api/customers", selectedCustomerId, "cases"],
+    queryKey: ["/api/customers", selectedCustomerId, "cases"], // Cache key til kunde sager
     queryFn: async () => {
       if (!selectedCustomerId) return null;
       const res = await apiRequest("GET", `/api/customers/${selectedCustomerId}/cases`);
       return res.json();
     },
-    enabled: !!selectedCustomerId,
+    enabled: !!selectedCustomerId,                             // Kun aktiv når kunde er valgt
   });
 
+  // Henter alle ordrer for valgt kunde
   const { data: customerOrders } = useQuery({
-    queryKey: ["/api/customers", selectedCustomerId, "orders"],
+    queryKey: ["/api/customers", selectedCustomerId, "orders"], // Cache key til kunde ordrer
     queryFn: async () => {
       if (!selectedCustomerId) return null;
       const res = await apiRequest("GET", `/api/customers/${selectedCustomerId}/orders`);
       return res.json();
     },
-    enabled: !!selectedCustomerId,
+    enabled: !!selectedCustomerId,                             // Kun aktiv når kunde er valgt
   });
 
+  // Henter alle RMA'er for valgt kunde (med error handling)
   const { data: customerRmas } = useQuery({
-    queryKey: ["/api/customers", selectedCustomerId, "rmas"],
+    queryKey: ["/api/customers", selectedCustomerId, "rmas"],  // Cache key til kunde RMA'er
     queryFn: async () => {
       if (!selectedCustomerId) return null;
       try {
         const res = await apiRequest("GET", `/api/customers/${selectedCustomerId}/rmas`);
-        if (res.status === 404) return []; // Returnér tomt array hvis ikke fundet
+        if (res.status === 404) return [];                     // Returnerer tom array hvis ikke fundet
         return res.json();
       } catch {
-        return [];
+        return [];                                             // Fallback til tom array ved fejl
       }
     },
-    enabled: !!selectedCustomerId,
+    enabled: !!selectedCustomerId,                             // Kun aktiv når kunde er valgt
   });
 
-  const { data: statusTypesData, isLoading: isLoadingStatusTypes } = useQuery({
-    queryKey: ["/api/cases/types/status"],
-    queryFn: async () => {
-      const res = await apiRequest("GET", "/api/cases/types/status");
-      return res.json();
-    },
-  });
-
-  const { data: priorityTypesData, isLoading: isLoadingPriorityTypes } = useQuery({
-    queryKey: ["/api/cases/types/priority"],
-    queryFn: async () => {
-      const res = await apiRequest("GET", "/api/cases/types/priority");
-      return res.json();
-    },
-  });
-
-  // 5. Form hook  
+  // =================================================================
+  // FORM MANAGEMENT
+  // =================================================================
+  
+  // React Hook Form til brugeroprettelse/redigering
   const form = useForm<InsertUser>({
-    resolver: zodResolver(editingUser ? insertUserSchema : insertUserSchema),
-    defaultValues: {
-      username: "",
-      password: "",
-      name: "",
-      isWorker: true,
-      isAdmin: false,
-      birthday: null,
+    resolver: zodResolver(editingUser ? insertUserSchema : insertUserSchema), // Zod validation
+    defaultValues: {                                           // Standard værdier for nye brugere
+      username: "",                                            // Tomt brugernavn
+      password: "",                                            // Tomt password
+      name: "",                                                // Tomt navn
+      isWorker: true,                                          // Default medarbejder (ikke kun kunde)
+      isAdmin: false,                                          // Default ikke admin
+      birthday: null,                                          // Ingen fødselsdag som standard
     },
   });
 
-  // 6. Mutation hooks
+  // =================================================================
+  // MUTATION FOR BRUGEROPRETTELSE/OPDATERING
+  // =================================================================
+  
+  // Mutation til at oprette eller opdatere brugere
   const userMutation = useMutation({
     mutationFn: async (data: InsertUser & { id?: number }) => {
-      const method = data.id ? "PUT" : "POST";
-      const endpoint = data.id ? `/api/users/${data.id}` : "/api/users";
-      const res = await apiRequest(method, endpoint, data);
+      const method = data.id ? "PUT" : "POST";                 // PUT til opdatering, POST til oprettelse
+      const endpoint = data.id ? `/api/users/${data.id}` : "/api/users"; // Endpoint baseret på operation
+      const res = await apiRequest(method, endpoint, data);    // API kald
       return res.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
-      toast({
+    onSuccess: () => {                                         // Callback når mutation succeeds
+      queryClient.invalidateQueries({ queryKey: ["/api/users"] }); // Invaliderer cache så data refreshes
+      toast({                                                  // Viser success toast
         title: editingUser ? "Bruger opdateret" : "Bruger oprettet",
         description: editingUser 
           ? "Medarbejderen er blevet opdateret"
@@ -256,45 +315,28 @@ export default function AdminPage() {
     },
   });
 
-  const statusTypeMutation = useMutation({
-    mutationFn: async (data: { key: string; label: string; id?: number }) => {
-      const method = data.id ? "PUT" : "POST";
-      const endpoint = data.id
-        ? `/api/cases/types/status/${data.id}`
-        : "/api/cases/types/status";
-      const res = await apiRequest(method, endpoint, data);
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/cases/types/status"] });
-      toast({ title: "Statustype opdateret", description: "Statustypen er blevet opdateret" });
-    },
-    onError: (error: Error) => {
-      toast({ title: "Fejl", description: error.message, variant: "destructive" });
-    },
-  });
-
-  const priorityTypeMutation = useMutation({
-    mutationFn: async (data: { key: string; label: string; id?: number }) => {
-      const method = data.id ? "PUT" : "POST";
-      const endpoint = data.id
-        ? `/api/cases/types/priority/${data.id}`
-        : "/api/cases/types/priority";
-      const res = await apiRequest(method, endpoint, data);
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/cases/types/priority"] });
-      toast({ title: "Prioritetstype opdateret", description: "Prioritetstypen er blevet opdateret" });
-    },
-    onError: (error: Error) => {
-      toast({ title: "Fejl", description: error.message, variant: "destructive" });
-    },
-  });
+  // =================================================================
+  // EVENT HANDLERS
+  // =================================================================
 
   // Håndter oprettelse af bruger
   const handleCreateUser = () => {
     setEditingUser(null);
+    setIsSheetOpen(true);
+  };
+
+  // Håndter redigering af bruger
+  const handleEditUser = (user: User) => {
+    setEditingUser(user);
+    form.reset({
+      username: user.username,
+      name: user.name,
+      password: "", // Lad password-feltet være tomt ved redigering
+      isWorker: user.isWorker,
+      isAdmin: user.isAdmin,
+      isCustomer: user.isCustomer,
+      birthday: user.birthday ? new Date(user.birthday) : undefined,
+    });
     setIsSheetOpen(true);
   };
 
@@ -573,6 +615,10 @@ export default function AdminPage() {
     printWindow.print();
   };
 
+  // =================================================================
+  // RENDERING
+  // =================================================================
+
   // 8. Early returns
   if (!user?.isWorker) {
     return <div>Ingen adgang</div>;
@@ -750,7 +796,7 @@ export default function AdminPage() {
             {/* MEDARBEJDERE/ADMIN TABEL */}
             <div className="mb-8">
               <h2 className="text-lg font-semibold mb-2">Medarbejdere & Admins</h2>
-              <div className="bg-white rounded-lg shadow">
+                              <div className="bg-card rounded-lg shadow dark:shadow-lg">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -764,7 +810,7 @@ export default function AdminPage() {
                     {paginatedStaff.map((userData, index) => {
                       const isEven = index % 2 === 0;
                       return (
-                        <TableRow key={userData.id} className={isEven ? 'bg-white' : 'bg-gray-50'}>
+                        <TableRow key={userData.id} className={isEven ? 'bg-card' : 'bg-muted/30'}>
                           <TableCell>{userData.name}</TableCell>
                           <TableCell>{userData.username}</TableCell>
                           <TableCell>
@@ -817,73 +863,7 @@ export default function AdminPage() {
               </div>
             </div>
 
-            {/* KUNDE TABEL */}
-            <div>
-              <h2 className="text-lg font-semibold mb-2">Kunder</h2>
-              <div className="bg-white rounded-lg shadow">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Navn</TableHead>
-                      <TableHead>Brugernavn</TableHead>
-                      <TableHead>Type</TableHead>
-                      {user.isAdmin && <TableHead>Handlinger</TableHead>}
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {paginatedCustomers.map((userData, index) => {
-                      const isEven = index % 2 === 0;
-                      return (
-                        <TableRow key={userData.id} className={isEven ? 'bg-white' : 'bg-gray-50'}>
-                          <TableCell>{userData.name}</TableCell>
-                          <TableCell>{userData.username}</TableCell>
-                          <TableCell>Kunde</TableCell>
-                          {user.isAdmin && (
-                            <TableCell className="space-x-2">
-                              <Button variant="outline" size="icon" onClick={() => handleEditUser(userData)}>
-                                <Edit2 className="w-4 h-4" />
-                              </Button>
-                              <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                  <Button variant="outline" size="icon">
-                                    <Trash2 className="w-4 h-4" />
-                                  </Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                  <AlertDialogHeader>
-                                    <AlertDialogTitle>Er du sikker?</AlertDialogTitle>
-                                    <AlertDialogDescription>
-                                      Dette vil permanent slette kunden {userData.name}.
-                                      Denne handling kan ikke fortrydes.
-                                    </AlertDialogDescription>
-                                  </AlertDialogHeader>
-                                  <AlertDialogFooter>
-                                    <AlertDialogCancel>Annuller</AlertDialogCancel>
-                                    <AlertDialogAction onClick={() => deleteUserMutation.mutate(userData.id)}>
-                                      Slet
-                                    </AlertDialogAction>
-                                  </AlertDialogFooter>
-                                </AlertDialogContent>
-                              </AlertDialog>
-                            </TableCell>
-                          )}
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-                {/* PAGINATION CUSTOMERS */}
-                <div className="flex justify-end items-center gap-2 p-2">
-                  <Button variant="outline" size="sm" onClick={() => setCustomerPage(p => Math.max(1, p-1))} disabled={customerPage === 1}>
-                    <ChevronLeft className="w-4 h-4" /> Forrige
-                  </Button>
-                  <span>Side {customerPage} af {customerTotalPages}</span>
-                  <Button variant="outline" size="sm" onClick={() => setCustomerPage(p => Math.min(customerTotalPages, p+1))} disabled={customerPage === customerTotalPages}>
-                    Næste <ChevronRight className="w-4 h-4" />
-                  </Button>
-                </div>
-              </div>
-            </div>
+
           </TabsContent>
           <TabsContent value="delete-customer">
             <div className="max-w-lg space-y-4">
@@ -959,7 +939,7 @@ export default function AdminPage() {
                       className="inline-flex items-center px-3 py-1 rounded-full bg-blue-100 text-blue-800 text-sm font-medium border border-blue-200"
                     >
                       {getStatusLabel(value)}
-                      <span className="ml-2 text-xs text-gray-400">({value})</span>
+                      <span className="ml-2 text-xs text-muted-foreground">({value})</span>
                     </span>
                   ))}
                 </div>
@@ -973,7 +953,7 @@ export default function AdminPage() {
                       className="inline-flex items-center px-3 py-1 rounded-full bg-green-100 text-green-800 text-sm font-medium border border-green-200"
                     >
                       {getPriorityLabel(value)}
-                      <span className="ml-2 text-xs text-gray-400">({value})</span>
+                      <span className="ml-2 text-xs text-muted-foreground">({value})</span>
                     </span>
                   ))}
                 </div>
@@ -981,7 +961,7 @@ export default function AdminPage() {
             </div>
           </TabsContent>
           <TabsContent value="download-customer">
-            <div className="max-w-xl mx-auto p-6 bg-white rounded-xl shadow space-y-6">
+            <div className="max-w-xl mx-auto p-6 bg-card rounded-xl shadow dark:shadow-lg space-y-6">
               <h2 className="text-2xl font-bold mb-2 flex items-center gap-2">
                 <span>Download/print kundedata</span>
                 <Info className="w-5 h-5 text-blue-400" />
@@ -1024,7 +1004,7 @@ export default function AdminPage() {
             </div>
           </TabsContent>
           <TabsContent value="stats">
-            <div className="p-6 bg-white rounded-xl shadow space-y-8">
+            <div className="p-6 bg-card rounded-xl shadow dark:shadow-lg space-y-8">
               <div className="mb-8 flex items-center gap-4">
                 <div>
                   <h1 className="text-3xl font-bold flex items-center gap-2">
@@ -1081,7 +1061,7 @@ function CasesPerMonthGraph() {
   const change = casesLastMonth > 0 ? Math.round(((casesThisMonth - casesLastMonth) / casesLastMonth) * 100) : 0;
 
   return (
-    <div className="bg-white rounded-xl shadow p-6 flex flex-col gap-4 border border-gray-100">
+    <div className="bg-card rounded-xl shadow dark:shadow-lg p-6 flex flex-col gap-4 border border-border">
       <div className="flex items-center gap-2 mb-2">
         <FileText className="w-5 h-5 text-blue-500" />
         <span className="text-lg font-semibold">Sager pr. måned</span>
@@ -1120,172 +1100,72 @@ function CasesPerMonthGraph() {
 }
 
 function AvgCaseTimeGraph() {
-  const { data, isLoading } = useCasesQuery({ page: 1, pageSize: 10000 });
+  const { data, isLoading } = useCasesQuery({ page: 1, pageSize: 10000, includeCompleted: true });
   const [fromMonth, setFromMonth] = useState('');
   const [toMonth, setToMonth] = useState('');
+  
   if (isLoading) return <div>Indlæser sager...</div>;
   const cases = Array.isArray(data) ? data : (data?.items || []);
 
-  // Filtrer kun afsluttede sager (completed, ready_for_pickup)
-  const completedCases = cases.filter((c: any) => 
-    c.status === 'completed' || c.status === 'ready_for_pickup'
-  );
+  // Filtrer kun afsluttede sager
+  const completedCases = cases.filter((c: any) => c.status === 'completed');
 
-  console.log('TOTAL COMPLETED CASES:', completedCases.length);
-  console.log('TOTAL CASES FROM API:', cases.length);
+  // Beregn månedssammenligning ligesom dashboard
+  const thisMonth = format(new Date(), 'yyyy-MM');
+  const lastMonth = format(new Date(new Date().setMonth(new Date().getMonth() - 1)), 'yyyy-MM');
   
-  // Debug: Find de nyeste sager (17461-17467)
-  const newestCases = cases.filter((c: any) => c.id >= 17461 && c.id <= 17467);
-  console.log('NYESTE TEST SAGER (17461-17467):', newestCases.length);
-  newestCases.forEach((c: any) => {
-    console.log('NYESTE SAG:', {id: c.id, status: c.status, updatedAt: c.updatedAt, createdAt: c.createdAt});
+  const thisMonthCases = completedCases.filter((c: any) => {
+    const caseMonth = format(parseISO(c.updatedAt), 'yyyy-MM');
+    return caseMonth === thisMonth;
   });
   
-  // Debug: Find alle sager med maj 2025 updatedAt
-  const mayUpdatedCases = cases.filter((c: any) => {
-    const updated = parseISO(c.updatedAt);
-    const localDateStr = updated.toLocaleString('sv-SE', { timeZone: 'Europe/Copenhagen' });
-    const localMonth = localDateStr.substring(0, 7);
-    return localMonth === '2025-05';
-  });
-  console.log('ALLE SAGER MED MAJ 2025 UPDATED:', mayUpdatedCases.length);
-  mayUpdatedCases.forEach((c: any) => {
-    console.log('MAJ UPDATED SAG:', {id: c.id, status: c.status, updatedAt: c.updatedAt});
+  const lastMonthCases = completedCases.filter((c: any) => {
+    const caseMonth = format(parseISO(c.updatedAt), 'yyyy-MM');
+    return caseMonth === lastMonth;
   });
   
-  // Debug: Find afsluttede sager med maj 2025 updatedAt
-  const mayCompletedCases = mayUpdatedCases.filter((c: any) => 
-    c.status === 'completed' || c.status === 'ready_for_pickup'
-  );
-  console.log('MAJ 2025 AFSLUTTEDE SAGER:', mayCompletedCases.length);
-  mayCompletedCases.forEach((c: any) => {
-    console.log('MAJ AFSLUTTET SAG:', {id: c.id, status: c.status, updatedAt: c.updatedAt});
-  });
+  const calculateAvg = (cases: any[]) => {
+    if (cases.length === 0) return 0;
+    const totalDays = cases.reduce((sum: number, c: any) => {
+      const days = differenceInDays(parseISO(c.updatedAt), parseISO(c.createdAt));
+      return sum + Math.max(days, 1); // Minimum 1 dag
+    }, 0);
+    return Math.round(totalDays / cases.length);
+  };
   
-  // Debug: Tjek specifikt de sager vi ved er afsluttede
-  const specificCompletedCases = cases.filter((c: any) => 
-    [17461, 17462, 17463, 17464, 17465, 17466, 17467].includes(c.id)
-  );
-  console.log('SPECIFIKKE AFSLUTTEDE SAGER (17461-17467):', specificCompletedCases.length);
-  specificCompletedCases.forEach((c: any) => {
-    const updated = parseISO(c.updatedAt);
-    const localDateStr = updated.toLocaleString('sv-SE', { timeZone: 'Europe/Copenhagen' });
-    const localMonth = localDateStr.substring(0, 7);
-    console.log('SPECIFIK SAG:', {
-      id: c.id, 
-      status: c.status, 
-      updatedAt: c.updatedAt,
-      localMonth,
-      isCompleted: c.status === 'completed' || c.status === 'ready_for_pickup'
-    });
-  });
+  const avgDaysThisMonth = calculateAvg(thisMonthCases);
+  const avgDaysLastMonth = calculateAvg(lastMonthCases);
+  const avgDaysChangePercent = avgDaysLastMonth > 0 ? 
+    Math.round(((avgDaysThisMonth - avgDaysLastMonth) / avgDaysLastMonth) * 100) : 0;
 
-  // Aggreger gennemsnitlig behandlingstid pr. måned
-  const monthMap: Record<string, number[]> = {};
-  let debugCount = 0;
-  let mayCount = 0;
-  completedCases.forEach((c: any) => {
-    // Brug præcis tidszone-konvertering til Europe/Copenhagen
-    const updated = parseISO(c.updatedAt);
-    // Konverter til dansk lokal tid ved at bruge toLocaleString
-    const localDateStr = updated.toLocaleString('sv-SE', { timeZone: 'Europe/Copenhagen' }); // sv-SE giver YYYY-MM-DD format
-    const localMonth = localDateStr.substring(0, 7); // Tag YYYY-MM delen
-    
-    // Tæl maj 2025 sager
-    if (localMonth === '2025-05') {
-      mayCount++;
-      console.log('MAJ-MATCH:', {id: c.id, updatedAt: c.updatedAt, createdAt: c.createdAt, status: c.status});
-    }
-    
-    // Debug de første 5 sager
-    if (debugCount < 5) {
-      console.log('DEBUG CASE:', {
-        id: c.id,
-        updatedAt: c.updatedAt,
-        localDateStr,
-        localMonth,
-        status: c.status
-      });
-      debugCount++;
-    }
-    
-    let days = differenceInDays(updated, parseISO(c.createdAt));
-    // Hvis differenceInDays er 0, men createdAt og updatedAt er samme dag, så sæt til 1 dag
-    if (days === 0) {
-      const created = parseISO(c.createdAt);
-      const createdLocalStr = created.toLocaleString('sv-SE', { timeZone: 'Europe/Copenhagen' });
-      const createdLocalDate = createdLocalStr.substring(0, 10); // YYYY-MM-DD
-      const updatedLocalDate = localDateStr.substring(0, 10); // YYYY-MM-DD
-      if (
-        createdLocalDate === updatedLocalDate
-      ) {
-        days = 1;
-      }
-    }
-    if (!monthMap[localMonth]) monthMap[localMonth] = [];
-    monthMap[localMonth].push(days);
-    // Log alle sager der matcher maj 2025
-    if (localMonth === '2025-05') {
-      console.log('MAJ-MATCH:', {id: c.id, updatedAt: c.updatedAt, createdAt: c.createdAt, days});
-    }
-  });
-
-  // Byg de seneste 12 måneder, så grafen altid slutter med nuværende måned
-  const now = new Date();
-  let months: string[] = [];
-  for (let i = 11; i >= 0; i--) {
-    months.push(format(subMonths(now, i), 'yyyy-MM'));
-  }
-
-  // Filtrér på valgt interval hvis angivet
-  if (fromMonth) months = months.filter(m => m >= fromMonth);
-  if (toMonth) months = months.filter(m => m <= toMonth);
-
-  // Byg chartData så alle måneder er med, også dem uden data
-  const chartData = months.map(month => ({
-    month,
-    avgDays: monthMap[month]?.length > 0
-      ? Math.round(monthMap[month].reduce((a, b) => a + b, 0) / monthMap[month].length)
-      : 0
-  }));
-
-  // Flyt logning herned
-  console.log('months', months);
-  console.log('chartData', chartData);
-  console.log('MAJ 2025 COMPLETED CASES:', mayCount);
-
-  // Nøgletal for denne og sidste måned
-  const thisMonth = format(now, 'yyyy-MM');
-  const lastMonth = format(subMonths(now, 1), 'yyyy-MM');
-  const avgThisMonth = chartData.find(d => d.month === thisMonth)?.avgDays || 0;
-  const avgLastMonth = chartData.find(d => d.month === lastMonth)?.avgDays || 0;
+  // Data til graf - viser denne og sidste måned
+  const chartData = [
+    { month: lastMonth, avgDays: avgDaysLastMonth },
+    { month: thisMonth, avgDays: avgDaysThisMonth }
+  ].filter(item => item.avgDays > 0);
 
   return (
-    <div className="bg-white rounded-xl shadow p-6 flex flex-col gap-4 border border-gray-100">
+    <div className="bg-card rounded-xl shadow dark:shadow-lg p-6 flex flex-col gap-4 border border-border">
       <div className="flex items-center gap-2 mb-2">
         <Clock className="w-5 h-5 text-green-500" />
-        <span className="text-lg font-semibold">Gennemsnitlig sagstid pr. måned</span>
+        <span className="text-lg font-semibold">Gennemsnitlig sagstid - månedlig sammenligning</span>
       </div>
       <p className="text-muted-foreground text-sm mb-2">
-        Udvikling i gennemsnitlig behandlingstid for afsluttede sager. Vælg periode for at filtrere.
+        Sammenligning af gennemsnitlig behandlingstid for afsluttede sager denne måned vs. sidste måned.
       </p>
-      <div className="flex items-center gap-4 mb-4">
-        <label className="text-sm">Fra:
-          <input type="month" className="ml-2 border rounded px-2 py-1" value={fromMonth} onChange={e => setFromMonth(e.target.value)} />
-        </label>
-        <label className="text-sm">Til:
-          <input type="month" className="ml-2 border rounded px-2 py-1" value={toMonth} onChange={e => setToMonth(e.target.value)} />
-        </label>
-        {(fromMonth || toMonth) && (
-          <button className="ml-4 text-xs text-blue-600 underline" onClick={() => { setFromMonth(''); setToMonth(''); }}>Nulstil filter</button>
+      <div className="mb-4 space-y-2">
+        <div>
+          <span className="font-medium">Denne måned:</span> {avgDaysThisMonth} dage
+        </div>
+        <div>
+          <span className="font-medium">Sidste måned:</span> {avgDaysLastMonth} dage
+        </div>
+        {avgDaysChangePercent !== 0 && (
+          <div className={avgDaysChangePercent < 0 ? 'text-green-600' : 'text-red-600'}>
+            <span className="font-medium">Ændring:</span> {avgDaysChangePercent < 0 ? '↓' : '↑'} {Math.abs(avgDaysChangePercent)}%
+            {avgDaysChangePercent < 0 ? ' (forbedring)' : ' (forværring)'}
+          </div>
         )}
-      </div>
-      <div className="mb-4">
-        <span className="font-medium">Denne måned:</span> {avgThisMonth} dage
-        <span className="text-muted-foreground ml-4">{avgLastMonth} dage sidste måned</span>
-        <span className={avgThisMonth - avgLastMonth >= 0 ? 'text-green-600 ml-4' : 'text-red-600 ml-4'}>
-          {avgLastMonth > 0 ? (avgThisMonth - avgLastMonth >= 0 ? '↑' : '↓') : ''} {avgLastMonth > 0 ? Math.abs(Math.round(((avgThisMonth - avgLastMonth) / avgLastMonth) * 100)) : 0}% fra sidste måned
-        </span>
       </div>
       <ResponsiveContainer width="100%" height={300}>
         <BarChart data={chartData} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
@@ -1329,7 +1209,7 @@ function NewCustomersGraph() {
   const change = customersLastMonth > 0 ? Math.round(((customersThisMonth - customersLastMonth) / customersLastMonth) * 100) : 0;
 
   return (
-    <div className="bg-white rounded-xl shadow p-6 flex flex-col gap-4 border border-gray-100">
+    <div className="bg-card rounded-xl shadow dark:shadow-lg p-6 flex flex-col gap-4 border border-border">
       <div className="flex items-center gap-2 mb-2">
         <Users className="w-5 h-5 text-purple-500" />
         <span className="text-lg font-semibold">Nye kunder pr. måned</span>
@@ -1391,7 +1271,7 @@ function RmaPerMonthGraph() {
   const chartData = months.map(month => ({ month, antal: counts[month] }));
 
   return (
-    <div className="bg-white rounded-xl shadow p-6 flex flex-col gap-4 border border-gray-100">
+    <div className="bg-card rounded-xl shadow dark:shadow-lg p-6 flex flex-col gap-4 border border-border">
       <div className="flex items-center gap-2 mb-2">
         <Activity className="w-5 h-5 text-orange-500" />
         <span className="text-lg font-semibold">Antal RMA pr. måned</span>
@@ -1447,7 +1327,7 @@ function OrdersPerMonthGraph() {
   const chartData = months.map(month => ({ month, antal: counts[month] }));
 
   return (
-    <div className="bg-white rounded-xl shadow p-6 flex flex-col gap-4 border border-gray-100">
+    <div className="bg-card rounded-xl shadow dark:shadow-lg p-6 flex flex-col gap-4 border border-border">
       <div className="flex items-center gap-2 mb-2">
         <Package className="w-5 h-5 text-indigo-500" />
         <span className="text-lg font-semibold">Antal bestillinger pr. måned</span>
@@ -1481,7 +1361,7 @@ function OrdersPerMonthGraph() {
 
 function CasesByTreatmentGraph() {
   const [treatment, setTreatment] = useState('repair');
-  const { data, isLoading } = useCasesQuery({ page: 1, pageSize: 10000 });
+  const { data, isLoading } = useCasesQuery({ page: 1, pageSize: 10000, includeCompleted: true });
   const [fromMonth, setFromMonth] = useState('');
   const [toMonth, setToMonth] = useState('');
   if (isLoading) return <div>Indlæser sager...</div>;
@@ -1511,7 +1391,7 @@ function CasesByTreatmentGraph() {
   ];
 
   return (
-    <div className="bg-white rounded-xl shadow p-6 flex flex-col gap-4 border border-gray-100">
+    <div className="bg-card rounded-xl shadow dark:shadow-lg p-6 flex flex-col gap-4 border border-border">
       <div className="flex items-center gap-2 mb-2">
         <Activity className="w-5 h-5 text-red-500" />
         <span className="text-lg font-semibold">Antal sager pr. behandlingstype pr. måned</span>
@@ -1554,7 +1434,7 @@ function CasesByTreatmentGraph() {
 }
 
 function StatsCards() {
-  const { data: casesData } = useCasesQuery({ page: 1, pageSize: 10000 });
+  const { data: casesData } = useCasesQuery({ page: 1, pageSize: 10000, includeCompleted: true });
   const { data: customers } = useAllCustomersQuery();
   const { data: rmaData } = useRMAsQuery({ page: 1, pageSize: 10000 });
   const { data: ordersData } = useOrdersQuery({ page: 1, pageSize: 10000 });
@@ -1571,30 +1451,113 @@ function StatsCards() {
   const cases = Array.isArray(casesData) ? casesData : (casesData?.items || []);
   const now = new Date();
   const thisMonth = format(now, 'yyyy-MM');
+  const lastMonth = format(new Date(new Date().setMonth(new Date().getMonth() - 1)), 'yyyy-MM');
 
-  // Alle sager
-  const totalCases = cases.length;
-  // Gennemsnitlig sagstid for alle afsluttede sager
+  // Beregn månedsstatistikker ligesom dashboard
+  
+  // 1. Sager denne måned vs sidste måned
+  const casesThisMonth = cases.filter((c: any) => 
+    format(parseISO(c.createdAt), 'yyyy-MM') === thisMonth
+  ).length;
+  const casesLastMonth = cases.filter((c: any) => 
+    format(parseISO(c.createdAt), 'yyyy-MM') === lastMonth
+  ).length;
+  const casesChangePercent = casesLastMonth > 0 ? 
+    Math.round(((casesThisMonth - casesLastMonth) / casesLastMonth) * 100) : 0;
+
+  // 2. Gennemsnitlig sagstid denne måned vs sidste måned
   const completedCases = cases.filter((c: any) => c.status === 'completed');
-  const avgDays = completedCases.length > 0
-    ? Math.round(
-        completedCases.reduce((sum: number, c: any) => sum + differenceInDays(parseISO(c.updatedAt), parseISO(c.createdAt)), 0) / completedCases.length
-      )
-    : 0;
-  // Alle kunder
-  const totalCustomers = customers?.length || 0;
-  // Alle RMA
-  const totalRmas = rmaData?.items?.length || 0;
-  // Alle bestillinger
-  const totalOrders = ordersData?.items?.length || 0;
+  
+  const thisMonthCompletedCases = completedCases.filter((c: any) => {
+    const caseMonth = format(parseISO(c.updatedAt), 'yyyy-MM');
+    return caseMonth === thisMonth;
+  });
+  
+  const lastMonthCompletedCases = completedCases.filter((c: any) => {
+    const caseMonth = format(parseISO(c.updatedAt), 'yyyy-MM');
+    return caseMonth === lastMonth;
+  });
+  
+  const calculateAvg = (cases: any[]) => {
+    if (cases.length === 0) return 0;
+    const totalDays = cases.reduce((sum: number, c: any) => {
+      const days = differenceInDays(parseISO(c.updatedAt), parseISO(c.createdAt));
+      return sum + Math.max(days, 1); // Minimum 1 dag
+    }, 0);
+    return Math.round(totalDays / cases.length);
+  };
+  
+  const avgDaysThisMonth = calculateAvg(thisMonthCompletedCases);
+  const avgDaysLastMonth = calculateAvg(lastMonthCompletedCases);
+  const avgDaysChangePercent = avgDaysLastMonth > 0 ? 
+    Math.round(((avgDaysThisMonth - avgDaysLastMonth) / avgDaysLastMonth) * 100) : 0;
+
+  // 3. Nye kunder denne måned vs sidste måned
+  const customersThisMonth = (customers || []).filter((c: any) => 
+    c.createdAt && format(parseISO(c.createdAt), 'yyyy-MM') === thisMonth
+  ).length;
+  const customersLastMonth = (customers || []).filter((c: any) => 
+    c.createdAt && format(parseISO(c.createdAt), 'yyyy-MM') === lastMonth
+  ).length;
+  const customersChangePercent = customersLastMonth > 0 ? 
+    Math.round(((customersThisMonth - customersLastMonth) / customersLastMonth) * 100) : 0;
+
+  // 4. RMA denne måned vs sidste måned
+  const rmas = rmaData?.items || [];
+  const rmasThisMonth = rmas.filter((r: any) => 
+    r.createdAt && format(parseISO(r.createdAt), 'yyyy-MM') === thisMonth
+  ).length;
+  const rmasLastMonth = rmas.filter((r: any) => 
+    r.createdAt && format(parseISO(r.createdAt), 'yyyy-MM') === lastMonth
+  ).length;
+  const rmasChangePercent = rmasLastMonth > 0 ? 
+    Math.round(((rmasThisMonth - rmasLastMonth) / rmasLastMonth) * 100) : 0;
+
+  // 5. Bestillinger denne måned vs sidste måned
+  const orders = ordersData?.items || [];
+  const ordersThisMonth = orders.filter((o: any) => 
+    o.createdAt && format(parseISO(o.createdAt), 'yyyy-MM') === thisMonth
+  ).length;
+  const ordersLastMonth = orders.filter((o: any) => 
+    o.createdAt && format(parseISO(o.createdAt), 'yyyy-MM') === lastMonth
+  ).length;
+  const ordersChangePercent = ordersLastMonth > 0 ? 
+    Math.round(((ordersThisMonth - ordersLastMonth) / ordersLastMonth) * 100) : 0;
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
-      <StatCard title="Totalt antal sager" value={totalCases} icon={<FileText className="w-5 h-5 text-blue-500" />} />
-      <StatCard title="Gennemsnitlig sagstid" value={`${avgDays} dage`} icon={<Clock className="w-5 h-5 text-green-500" />} />
-      <StatCard title="Totalt antal kunder" value={totalCustomers} icon={<Users className="w-5 h-5 text-purple-500" />} />
-      <StatCard title="Totalt antal RMA" value={totalRmas} icon={<Activity className="w-5 h-5 text-orange-500" />} />
-      <StatCard title="Totalt antal bestillinger" value={totalOrders} icon={<Package className="w-5 h-5 text-indigo-500" />} />
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-8">
+      <StatCardWithChange 
+        title="Sager denne måned" 
+        value={casesThisMonth} 
+        changePercent={casesChangePercent}
+        icon={<FileText className="w-5 h-5 text-blue-500" />} 
+      />
+      <StatCardWithChange 
+        title="Gennemsnitlig sagstid" 
+        value={`${avgDaysThisMonth} dage`}
+        changePercent={avgDaysChangePercent}
+        isLowerBetter={true}
+        icon={<Clock className="w-5 h-5 text-green-500" />} 
+      />
+      <StatCardWithChange 
+        title="Nye kunder denne måned" 
+        value={customersThisMonth} 
+        changePercent={customersChangePercent}
+        icon={<Users className="w-5 h-5 text-purple-500" />} 
+      />
+      <StatCardWithChange 
+        title="RMA denne måned" 
+        value={rmasThisMonth} 
+        changePercent={rmasChangePercent}
+        isLowerBetter={true}
+        icon={<Activity className="w-5 h-5 text-orange-500" />} 
+      />
+      <StatCardWithChange 
+        title="Bestillinger denne måned" 
+        value={ordersThisMonth} 
+        changePercent={ordersChangePercent}
+        icon={<Package className="w-5 h-5 text-indigo-500" />} 
+      />
       <StatCard title="Sager i alarm" value={alarmCount} icon={<AlertCircle className="w-5 h-5 text-red-500" />} />
     </div>
   );
@@ -1602,12 +1565,51 @@ function StatsCards() {
 
 function StatCard({ title, value, icon }: { title: string; value: React.ReactNode; icon: React.ReactNode }) {
   return (
-    <div className="bg-gray-50 rounded-xl shadow p-4 flex flex-col items-start gap-2 border border-gray-100">
-      <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
+    <div className="bg-card rounded-xl shadow dark:shadow-lg p-4 flex flex-col items-start gap-2 border border-border">
+      <div className="flex items-center gap-2 text-sm font-medium text-foreground">
         {icon}
         {title}
       </div>
       <div className="text-2xl font-bold">{value}</div>
+    </div>
+  );
+}
+
+function StatCardWithChange({ 
+  title, 
+  value, 
+  changePercent, 
+  icon, 
+  isLowerBetter = false 
+}: { 
+  title: string; 
+  value: React.ReactNode; 
+  changePercent: number;
+  icon: React.ReactNode;
+  isLowerBetter?: boolean;
+}) {
+  const isPositiveChange = changePercent > 0;
+  const isGoodChange = isLowerBetter ? !isPositiveChange : isPositiveChange;
+  
+  return (
+    <div className="bg-card rounded-xl shadow dark:shadow-lg p-4 flex flex-col items-start gap-2 border border-border">
+      <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+        {icon}
+        {title}
+      </div>
+      <div className="text-2xl font-bold">{value}</div>
+      {changePercent !== 0 && (
+        <p className="text-xs text-muted-foreground">
+          <span className={isGoodChange ? 'text-green-600 flex items-center' : 'text-red-600 flex items-center'}>
+            {isPositiveChange ? (
+              <ArrowUpRight className="h-4 w-4 mr-1" />
+            ) : (
+              <ArrowDownRight className="h-4 w-4 mr-1" />
+            )}
+            {Math.abs(changePercent)}% fra sidste måned
+          </span>
+        </p>
+      )}
     </div>
   );
 }

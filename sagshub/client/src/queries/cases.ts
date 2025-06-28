@@ -84,8 +84,8 @@ export function useCaseStatusHistory(caseId: number) {
     },
     retry: 3,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
-    staleTime: 1000 * 60, // 1 minute
-    gcTime: 1000 * 60 * 5, // 5 minutes
+    staleTime: 5000, // 5 sekunder (hurtigere end 1 minut)
+    gcTime: 1000 * 60 * 2, // 2 minutter (hurtigere end 5 minutter)
     refetchOnWindowFocus: true,
     refetchOnMount: true,
     refetchOnReconnect: true,
@@ -105,11 +105,12 @@ export function useTotalCasesQuery() {
     },
     retry: 3,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
-    staleTime: 1000 * 60, // 1 minute
-    gcTime: 1000 * 60 * 5, // 5 minutes
+    staleTime: 10000, // 10 sekunder (hurtigere end 1 minut)
+    gcTime: 1000 * 60 * 2, // 2 minutter (hurtigere end 5 minutter)
     refetchOnWindowFocus: true,
     refetchOnMount: true,
     refetchOnReconnect: true,
+    refetchInterval: 15000, // Opdater hver 15 sekunder
   });
 }
 
@@ -124,11 +125,12 @@ export function useStatusCountsQuery() {
     },
     retry: 3,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
-    staleTime: 1000 * 60, // 1 minute
-    gcTime: 1000 * 60 * 5, // 5 minutes
+    staleTime: 10000, // 10 sekunder (hurtigere end 1 minut)
+    gcTime: 1000 * 60 * 2, // 2 minutter (hurtigere end 5 minutter)
     refetchOnWindowFocus: true,
     refetchOnMount: true,
     refetchOnReconnect: true,
+    refetchInterval: 15000, // Opdater hver 15 sekunder
   });
 }
 
@@ -143,11 +145,12 @@ export function useAlarmCasesQuery() {
     },
     retry: 3,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
-    staleTime: 1000 * 60, // 1 minute
-    gcTime: 1000 * 60 * 5, // 5 minutes
+    staleTime: 5000, // 5 sekunder (hurtigere end 1 minut)
+    gcTime: 1000 * 60 * 2, // 2 minutter (hurtigere end 5 minutter)
     refetchOnWindowFocus: true,
     refetchOnMount: true,
     refetchOnReconnect: true,
+    refetchInterval: 10000, // Poller hver 10 sekunder for alarm sager
   });
 }
 

@@ -1,5 +1,80 @@
+// =============================================================================
+// SAGSHUB REACT APPLIKATION ENTRY POINT
+// =============================================================================
+// Dette er hovedindgangspunktet for React frontend applikationen og indeholder:
+// - React 18 concurrent features setup
+// - React DOM rendering til HTML
+// - Global CSS imports
+// - Root komponenter mounting
+// - Development mode konfiguration
+// =============================================================================
+
+// =================================================================
+// REACT FRAMEWORK IMPORTS
+// =================================================================
 import React, { useState } from 'react';
 import ReactDOM from 'react-dom/client';
+
+// =================================================================
+// APPLICATION IMPORTS
+// =================================================================
+import App from './src/App.tsx';                               // Hoved React applikationskomponent
+
+// =================================================================
+// GLOBAL STYLING IMPORTS
+// =================================================================
+import './src/index.css';                                      // Global CSS styles og TailwindCSS base
+
+// =================================================================
+// DEVELOPMENT TOOLS
+// =================================================================
+// Kun tilgængelig i development mode
+if (import.meta.env.DEV) {
+  // React DevTools og Hot Module Replacement er automatisk aktiveret via Vite
+  console.log('🚀 SagsHub development mode aktiveret');        // Development mode indikator
+}
+
+// =============================================================================
+// REACT APPLICATION BOOTSTRAP
+// =============================================================================
+
+// =================================================================
+// DOM ELEMENT REFERENCE
+// =================================================================
+// Henter root element fra index.html hvor React skal mountes
+const rootElement = document.getElementById('root');           // HTML root element fra index.html
+
+// =================================================================
+// REACT 18 ROOT CREATION
+// =================================================================
+// Opretter React 18 concurrent root til moderne features
+const root = ReactDOM.createRoot(rootElement);                // React 18 root creation (root element fra HTML)
+
+// =================================================================
+// APPLICATION RENDERING
+// =================================================================
+// Renderer hele React applikationen til DOM
+root.render(
+  <React.StrictMode>                                          {/* Udviklings mode med ekstra warnings og checks */}
+    <App />                                                   {/* Hoved applikationskomponent */}
+  </React.StrictMode>
+);
+
+// =============================================================================
+// REACT STRICT MODE FORDELE
+// =============================================================================
+// React.StrictMode aktiverer:
+// - Detektion af unsafe lifecycle methods
+// - Warnings om deprecated APIs  
+// - Dobbelt rendering i development (for side effect detection)
+// - Warnings om legacy string ref usage
+// - Detektion af uventede side effects
+
+// =============================================================================
+// HOT MODULE REPLACEMENT (HMR)
+// =============================================================================
+// Vite håndterer automatisk hot reloading af komponenter i development
+// Ingen manuel HMR konfiguration nødvendig - fungerer out-of-the-box
 
 function App() {
   const [username, setUsername] = useState('');
@@ -83,10 +158,4 @@ function App() {
       )}
     </div>
   );
-}
-
-ReactDOM.createRoot(document.getElementById('root')).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>
-); 
+} 

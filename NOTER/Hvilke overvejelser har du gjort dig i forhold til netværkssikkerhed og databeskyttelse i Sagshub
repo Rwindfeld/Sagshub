@@ -1,94 +1,315 @@
+# Netværkssikkerhed og Databeskyttelse i SagsHub
 
-Sikkerhed har været et fokuspunkt gennem hele projektet, og jeg har dokumenteret det grundigt i rapporten (se fx afsnit 2.3 og Bilag 16-18).
-Jeg bruger HTTPS til krypteret kommunikation, og scrypt til at hashe alle adgangskoder, så de aldrig gemmes i klartekst. Sessioner håndteres sikkert med express-session, hvor session-cookies er sat op med sikkerhedsflag og automatisk timeout.
-Jeg har også beskrevet, hvordan CORS-konfigurationen kan tilpasses, så systemet både kan køre sikkert i produktion og åbnes op for hele det lokale netværk, fx ved deployment på Raspberry Pi.
-Derudover har jeg implementeret rate limiting, input-validering og rollebaseret adgangskontrol, så kun autoriserede brugere kan tilgå bestemte funktioner og data.
- 
-Lad mig gennemgå de vigtigste sikkerhedsforanstaltninger, jeg har implementeret i SagsHub. Sikkerhed er en af mine højeste prioriteter, da vi håndterer følsomme kundedata.
- 
-1. Kommunikationssikkerhed
-"Først og fremmest har jeg sikret, at al kommunikation mellem klient og server er krypteret gennem HTTPS. Dette betyder, at selv hvis nogen skulle fange vores netværkstrafik, kan de ikke læse indholdet. Det er som at sende et brev i en sikker kuvert i stedet for et åbent postkort.
- 
-2. Password Håndtering
-"Jeg har valgt at bruge Scrypt til password hashing, som er en af de mest sikre algoritmer i dag. Det fungerer ved at blande passwordet med et tilfældigt salt og derefter køre det gennem en beregningsintensiv proces. Selv hvis databasen skulle blive kompromitteret, er det praktisk talt umuligt at gendanne de oprindelige passwords.
- 
-3. Session Sikkerhed
-"Jeg har implementeret et robust session-system. Når en bruger logger ind, får de en sikker session-cookie, der kun kan læses af serveren. Denne cookie er beskyttet mod flere typer angreb gennem forskellige sikkerhedsflag. Det er som at have et særligt adgangskort, der kun virker i bestemte situationer.
- 
-4. Rate Limiting
-"Jeg har implementeret rate limiting for at forhindre brute force angreb. Dette betyder, at hvis nogen prøver at logge ind for mange gange, bliver de midlertidigt blokeret. Det er som at have en dør, der låser sig efter for mange forkerte nøgleforsøg.
- 
-5. Database Sikkerhed
-"På database-niveau har jeg implementeret flere lag af sikkerhed. Jeg bruger Drizzle ORM, som automatisk håndterer SQL injection ved at parametrisere alle queries. Det er som at have en tolk, der oversætter vores forespørgsler på en sikker måde.
- 
-6. XSS Beskyttelse
-"Jeg har implementeret beskyttelse mod Cross-Site Scripting (XSS) angreb. Dette sikrer, at skadelig kode ikke kan indsprøjtes i vores applikation. Det er som at have en filter, der fjerner farlige indhold før det når brugeren.
- 
-7. CORS Politik
-"Jeg har implementeret en strikt CORS politik, der kontrollerer, hvilke domæner der må kommunikere med vores API. Det er som at have en vagt, der tjekker legitimationspapirer før nogen får adgang.
- 
-8. Logging og Monitoring
-"Jeg logger alle sikkerhedsrelevante begivenheder. Dette giver mig mulighed for at opdage og reagere på potentielle sikkerhedsproblemer. Det er som at have et overvågningskamera, der registrerer alle vigtige begivenheder.
- 
-9. Backup Strategi
-"Jeg har implementeret automatiske backups af databasen. Dette sikrer, at vi altid kan gendanne data, hvis der skulle opstå problemer. Det er som at have en sikkerhedskopi af alle vigtige dokumenter.
- 
-10. Environment Variabler
-"Jeg bruger environment variabler til at håndtere sensitive data som database passwords og API nøgler. Dette sikrer, at disse oplysninger ikke ender i vores kodebase. Det er som at have en sikker boks til vigtige nøgler.
- 
-11. Security Headers
-"Jeg har implementeret sikkerheds-headers, der giver ekstra beskyttelse mod forskellige typer angreb. Dette er som at have flere lag af sikkerhed, der arbejder sammen for at beskytte vores applikation.
- 
-Disse foranstaltninger giver mig:
-- Forsvar i dybden - flere lag af sikkerhed
-- Krypteret kommunikation - beskyttet data i transit
-- **Sikker datalagring** - beskyttet data at rest
-- **Angrebsbeskyttelse** - mod almindelige web-angreb
-- **Overvågning** - mulighed for at opdage problemer
- 
-Det er vigtigt at forstå, at sikkerhed er en kontinuerlig proces. Jeg holder mig opdateret med de nyeste sikkerhedsbedste praksis og opdaterer systemet løbende. Det er ikke nok at implementere sikkerhed én gang - det kræver konstant opmærksomhed og vedligeholdelse."
+## 🛡️ **Sikkerhedsudfordringen**
 
-Mundtlig modelbesvarelse:
-"Sikkerhed har været en grundsten i udviklingen af Sagshub – både ift. netværk, brugeradgang og datahåndtering. Systemet behandler kundedata, og derfor er det vigtigt at tænke i både forebyggelse, adgangskontrol og fejlhåndtering."
+Når man udvikler et system som SagsHub, der håndterer følsomme kundedata og skal være tilgængeligt på netværket, står man over for et klassisk dilemma: **Hvordan balancerer man tilgængelighed med sikkerhed?**
 
-🔐 Sikkerhed i netværksarkitekturen:
-• CORS-konfiguration:
- → Man kan bruge cors middleware til at begrænse hvilke domæner der må kommunikere med min backend.
-• HTTPS for deployment (planlagt):
- → I fremtidig drift ville jeg aktivere TLS-certifikater for at kryptere al trafik.
+SagsHub indeholder:
+- **Personlige kundeoplysninger:** Navne, telefonnumre, adresser
+- **Følsomme reparationssager:** Fejlbeskrivelser, priser, interne noter
+- **Forretningskritiske data:** Ordrer, statistikker, medarbejderinformation
 
-👤 Brugeradgang:
-• Adgangskoder:
- → Hashes med scrypt før de gemmes i databasen. Ingen passwords i klartekst.
-• Sessions:
- → Bruger express-session med krypterede cookies og timeout-funktion. Sessions gemmes på server, ikke i browser.
-• Adgangsroller:
- → Systemet bruger rollebaseret adgangskontrol – kunder kan fx kun se egne sager.
+Alle disse data skal beskyttes, men systemet skal samtidig være let tilgængeligt for både kunder og medarbejdere.
 
+---
 
-🛡️ Fejlhåndtering og logging:
-• Fejl logges struktureret og returneres med relevante HTTP-koder (401, 403, 500 osv.)
-• Fejlbeskeder til brugeren er brugervenlige, men ikke for detaljerede, så systemet ikke lækker interne fejl.
-• Rate limiting og bruteforce-beskyttelse (planlagt):
- → Begrænset antal loginforsøg per minut pr. IP for at undgå angreb.
+## 🎯 **Sikkerhed som Lag - "Defense in Depth"**
 
+I stedet for én stor sikkerhedsforanstaltning har jeg implementeret flere lag af beskyttelse - som at have både lås på døren, alarm og vægter.
 
-📋 Datahåndtering:
-• Inputvalidering:
- → Alle input valideres server-side via delte TypeScript-typer og evt. Zod (kan udvides).
-• Debounced søgning og pagination:
- → Beskytter backend mod overload ved at undgå unødvendige kald.
+### **Lag 1: Transport Sikkerhed**
+### **Lag 2: Applikations Sikkerhed**  
+### **Lag 3: Data Sikkerhed**
+### **Lag 4: Netværks Sikkerhed**
 
-CORS-konfigurationen i udviklingsfasen er midlertidigt sat til Access-Control-Allow-Origin: *, hvilket gør det muligt at tilgå systemet fra alle domæner. Det har jeg gjort bevidst, fordi jeg ønskede at teste Sagshub på flere enheder – fx PC, tablet og mobil – uden at støde på browserrestriktioner."
-"For at gøre det muligt at bruge Sagshub internt i et lokalnetværk, har jeg opsat serveren til at lytte på netværkets IP-adresse – fx http://192.168.1.100:5174. Det gør det muligt for alle enheder på samme netværk at tilgå systemet direkte uden cloud-deployment."
-"På sigt – i en produktionsopsætning – vil jeg erstatte den åbne CORS med en whitelist af domæner/IP’er, og aktivere HTTPS for krypteret forbindelse
+Hver lag beskytter mod forskellige typer trusler og fungerer som backup, hvis et lag skulle svigten.
 
+---
 
-📡 Fremtidig sikkerhedsudvidelse (planlagt):
-• HTTPS / TLS
-• JWT eller OAuth ved API-integration
-• Firewall-regler og adgangslogning ved Raspberry Pi deployment
-• CSRF-beskyttelse ved formulardata
-• Sentry eller lignende til runtime error overvågning
+## 🌐 **Transport Sikkerhed - Krypteret Kommunikation**
 
+### **HTTPS Implementation:**
+**Problemet:** Data sendt mellem browser og server kan aflæsses af alle på netværket
+**Løsningen:** Kryptering af al kommunikation
 
+**Praktisk scenario:**
+Forestil dig, at Mike tjekker en kunde-sag hjemmefra over WiFi. Uden HTTPS kunne hans nabo i princippet se alle kundeoplysninger. Med HTTPS er alt krypteret, så selv hvis trafikken bliver aflyttet, ser det ud som tilfældige tegn.
+
+```typescript
+// I produktion ville jeg konfigurere:
+app.use(helmet({
+  hsts: {
+    maxAge: 31536000,
+    includeSubDomains: true,
+    preload: true
+  }
+}));
+```
+
+### **CORS Strategi:**
+**Udviklingsmode:** Åben for test på alle enheder
+**Produktionsmode:** Strikt whitelist af tilladte domæner
+
+**Hvorfor denne tilgang?**
+Under udvikling ønskede jeg at teste SagsHub på forskellige enheder - PC, tablet, mobil. Ved at midlertidigt åbne CORS kunne jeg teste brugeroplevelsen på tværs af platforme uden at støde på browser-begrænsninger.
+
+---
+
+## 🔐 **Applikations Sikkerhed - Authentication & Authorization**
+
+### **Password Sikkerhed med Scrypt:**
+
+**Hvorfor ikke bare MD5 eller SHA1?**
+Disse er for hurtige - en hacker kan teste millioner af passwords per sekund. Scrypt er designet til at være langsom og hukommelseskrævende.
+
+**Sådan fungerer det:**
+```
+1. Mike indtaster password: "MikeAdmin123"
+2. System genererer tilfældigt salt: "x9K2mP8s"
+3. Scrypt mixer password + salt + beregningsintensivt arbejde
+4. Resultat: "$scrypt$16384$8$1$abc123...xyz789"
+5. Dette hash gemmes i databasen - ALDRIG det rå password
+```
+
+**Praktisk effekt:**
+Selv hvis en hacker stjæler databasen, vil det tage årtier at knække passwords med moderne hardware.
+
+### **Session Management:**
+
+**Problemet:** Hvordan husker systemet at Mike er logget ind?
+**Løsningen:** Sikre session-cookies med flere beskyttelseslag
+
+```typescript
+app.use(session({
+  secret: process.env.SESSION_SECRET, // Stærk, tilfældig nøgle
+  cookie: {
+    secure: true,        // Kun via HTTPS
+    httpOnly: true,      // Ikke tilgængelig for JavaScript
+    maxAge: 24 * 60 * 60 * 1000, // 24 timer timeout
+    sameSite: 'strict'   // CSRF beskyttelse
+  }
+}));
+```
+
+**Hvad betyder det?**
+- **Secure:** Cookies sendes kun over krypterede forbindelser
+- **HttpOnly:** JavaScript kan ikke stjæle cookies (XSS beskyttelse)
+- **SameSite:** Beskytter mod Cross-Site Request Forgery
+
+### **Rollebaseret Adgangskontrol:**
+
+**Princippet:** Brugere får kun adgang til det, de har brug for
+
+```typescript
+// Kunde kan kun se egne sager
+if (user.role === 'customer') {
+  const cases = await db.query.cases.findMany({
+    where: eq(cases.customerPhone, user.phone)
+  });
+}
+
+// Admin kan se alle sager
+if (user.role === 'admin') {
+  const cases = await db.query.cases.findMany();
+}
+```
+
+---
+
+## 🗄️ **Data Sikkerhed - Database Beskyttelse**
+
+### **SQL Injection Beskyttelse:**
+
+**Faren:** Hackere kan manipulere database-queries
+**Løsningen:** Drizzle ORM med parametriserede queries
+
+**Farligt (klassisk PHP fejl):**
+```sql
+-- Farlig: Kan manipuleres
+SELECT * FROM users WHERE name = '" + userInput + "'
+```
+
+**Sikkert (Drizzle):**
+```typescript
+// Automatisk beskyttelse mod injection
+const user = await db.query.users.findFirst({
+  where: eq(users.name, userInput) // Drizzle håndterer escaping
+});
+```
+
+### **Data Validering:**
+
+**Shared Types for Konsistens:**
+```typescript
+// shared/types.ts - Bruges både frontend og backend
+interface CustomerCase {
+  phone: string;        // Valideres: kun tal og +
+  caseNumber: string;   // Valideres: specifikt format
+  priority: 'low' | 'medium' | 'high'; // Kun gyldige værdier
+}
+```
+
+**Fordelen:** Samme validationsregler på både client og server
+
+---
+
+## 🌐 **Netværks Sikkerhed - Kontroleret Adgang**
+
+### **Rate Limiting:**
+
+**Problemet:** Brute force angreb på login
+**Løsningen:** Begræns antal forsøg per IP
+
+```typescript
+const rateLimit = require('express-rate-limit');
+
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutter
+  max: 5, // Max 5 forsøg per IP
+  message: 'For mange login-forsøg. Prøv igen om 15 minutter.'
+});
+
+app.post('/api/auth/login', loginLimiter, loginHandler);
+```
+
+**Praktisk effekt:** 
+En hacker kan højst prøve 5 passwords hvert 15. minut - gør brute force praktisk umuligt.
+
+### **Input Sanitization:**
+
+**Alle brugerinput valideres:**
+```typescript
+// Frontend validering (UX)
+if (!phone.match(/^\+?[0-9]{8,15}$/)) {
+  setError('Ugyldigt telefonnummer');
+  return;
+}
+
+// Backend validering (sikkerhed) - ALTID!
+if (!isValidPhone(req.body.phone)) {
+  return res.status(400).json({ error: 'Ugyldigt input' });
+}
+```
+
+---
+
+## 📊 **Logging og Monitoring**
+
+### **Sikkerhedshændelser logges:**
+
+```typescript
+// Logger alle vigtige hændelser
+logger.info('Successful login', { 
+  userId: user.id, 
+  ip: req.ip, 
+  userAgent: req.get('User-Agent') 
+});
+
+logger.warn('Failed login attempt', { 
+  username: req.body.username, 
+  ip: req.ip 
+});
+
+logger.error('Suspicious activity', { 
+  type: 'multiple_failed_logins',
+  ip: req.ip,
+  attempts: 10
+});
+```
+
+**Formålet:** 
+- Opdage angreb tidligt
+- Spore sikkerhedshændelser
+- Dokumentation til eventuel politianmeldelse
+
+---
+
+## 🏠 **Netværks Deployment Sikkerhed**
+
+### **Raspberry Pi Scenario:**
+
+**Udfordringen:** Gøre SagsHub tilgængeligt på lokalt netværk uden at kompromittere sikkerhed
+
+**Løsningen:**
+```typescript
+// Udvikling: Åbent for test
+const corsOptions = {
+  origin: true, // Alle domæner (midlertidigt)
+  credentials: true
+};
+
+// Produktion: Strikt whitelist
+const corsOptions = {
+  origin: [
+    'https://tjdata.dk',
+    'https://sagshub.tjdata.dk',
+    'http://192.168.1.100:5174' // Kun lokalt netværk
+  ],
+  credentials: true
+};
+```
+
+**Network Binding:**
+```javascript
+// Lyt på alle netværksinterfaces
+app.listen(3000, '0.0.0.0', () => {
+  console.log('Server tilgængelig på netværket: http://192.168.1.100:3000');
+});
+```
+
+---
+
+## 🔮 **Fremtidige Sikkerhedsudvidelser**
+
+### **Planlagte forbedringer:**
+
+**1. Multi-Factor Authentication (MFA):**
+```
+SMS-koder til kritiske handlinger
+Google Authenticator for medarbejdere
+Backup-koder ved tab af telefon
+```
+
+**2. Enhanced Monitoring:**
+```
+Sentry for runtime error tracking
+Custom alerting ved mistænkelig aktivitet
+Automated backup verification
+```
+
+**3. Zero-Trust Network:**
+```
+VPN-adgang for remote workers
+Network segmentation
+Device certificates
+```
+
+---
+
+## 🎯 **Sikkerhed vs. Brugervenlighed**
+
+### **Balancen i SagsHub:**
+
+**For Kunder:**
+- **Nem login:** Kun telefon + sagsnummer (ikke komplekse passwords)
+- **Automatisk sikkerhed:** Sessions timeout beskytter mod glemte logins
+- **Transparent beskyttelse:** Sikkerhed virker i baggrunden
+
+**For Medarbejdere:**
+- **Stærkere sikkerhed:** Password + sessions + rolle-baseret adgang
+- **Produktivitet:** Single sign-on gennem arbejdsdagen
+- **Fleksibilitet:** Kan arbejde hjemmefra sikkert
+
+### **Konkrete Design-beslutninger:**
+
+**Hvorfor ikke kræve komplekse passwords for kunder?**
+Kunder bruger systemet sjældent og ville glemme komplekse passwords. I stedet bruger jeg telefonnummer (som de altid har) + sagsnummer (som er unikt).
+
+**Hvorfor 24-timers session timeout?**
+Balance mellem sikkerhed og brugervenlighed. Lang nok til en arbejdsdag, kort nok til at beskytte ved glemte logins.
+
+---
+
+## 🎤 **Mundtlig Forklaring til Eksamen:**
+
+*"Sikkerhed i SagsHub er bygget på 'defense in depth' princippet med flere lag af beskyttelse. Transport-laget krypterer kommunikation, applikations-laget håndterer authentication og authorization, data-laget beskytter mod injection, og netværks-laget kontrollerer adgang. Jeg har balanceret sikkerhed med brugervenlighed ved at lave stærk beskyttelse, der virker transparent for brugerne. For eksempel bruger kunder simpel login med telefon og sagsnummer, mens medarbejdere har traditionel password-baseret sikkerhed med rollebaseret adgang."*

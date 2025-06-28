@@ -40,14 +40,14 @@ export function LiveActivityMenu() {
   }, [queryClient]);
 
   return (
-    <div className="mt-4 border-t pt-4">
+    <div className="mt-4 border-t border-border pt-4">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-medium text-gray-700">Live aktivitet</h3>
+        <h3 className="text-sm font-medium text-foreground">Live aktivitet</h3>
         <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
       </div>
       
       {recentActivities.length === 0 ? (
-        <div className="text-xs text-gray-500 py-2">
+        <div className="text-xs text-muted-foreground py-2">
           Ingen aktivitet endnu
         </div>
       ) : (
@@ -59,14 +59,14 @@ export function LiveActivityMenu() {
             return (
               <div 
                 key={activity.id} 
-                className={`text-xs py-2 px-2 border-b border-gray-100 last:border-b-0 rounded hover:bg-gray-50 transition-colors ${caseNumber ? 'cursor-pointer' : ''}`}
+                className={`text-xs py-2 px-2 border-b border-border last:border-b-0 rounded hover:bg-muted/30 dark:hover:bg-muted/50 transition-colors ${caseNumber ? 'cursor-pointer' : ''}`}
                 onClick={() => handleActivityClick(activity)}
                 title={activity.message}
               >
-                <div className="text-gray-700 leading-relaxed break-words">
+                <div className="text-foreground leading-relaxed break-words">
                   {activity.message}
                 </div>
-                <div className="text-gray-400 mt-1">
+                <div className="text-muted-foreground mt-1">
                   {format(new Date(activity.timestamp), 'HH:mm', { locale: da })}
                 </div>
               </div>

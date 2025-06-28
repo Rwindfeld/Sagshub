@@ -1,13 +1,16 @@
 {
-  "out": "./drizzle",
-  "schema": "./shared/schema.ts",
-  "driver": "postgresql",
   "dialect": "postgresql",
+  
   "dbCredentials": {
-    "host": "localhost",
-    "port": 5432,
-    "user": "postgres",
-    "password": "wa2657321",
-    "database": "sagshub"
+    "url": "postgresql://postgres:wa2657321@localhost:5432/sagshub"
+  },
+  
+  "schema": "./shared/schema.ts",
+  
+  "out": "./migrations",
+  
+  "migrations": {
+    "prefix": "timestamp",
+    "schema": "./migrations"
   }
 } 

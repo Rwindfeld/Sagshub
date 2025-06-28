@@ -1,0 +1,224 @@
+# Git Branches Guide - SagsHub
+
+## Hvad er Git Branches?
+
+**Git branches** er som separate arbejdslinjer i dit projekt. Forestil dig det som parallelle versioner af din kode, hvor du kan arbejde på forskellige features uden at påvirke hovedkoden.
+
+### Analogi:
+- **Main branch** = Hovedvejen (stabil, produceret kode)
+- **Feature branches** = Sidevejen (eksperimentel udvikling)
+- **Merge** = Sammenføjning af sidevejen tilbage til hovedvejen
+
+## Hvorfor Bruge Branches?
+
+✅ **Sikkerhed**: Eksperimenter uden at ødelægge fungerende kode
+✅ **Parallel udvikling**: Flere features samtidig
+✅ **Organisering**: Hold forskellige opgaver adskilt
+✅ **Samarbejde**: Team medlemmer kan arbejde uafhængigt
+✅ **Version control**: Nemt at rulle tilbage hvis noget går galt
+
+---
+
+## Basic Branch Kommandoer
+
+### 1. Se Alle Branches
+```bash
+git branch                    # Lokale branches
+git branch -a                 # Alle branches (lokale + remote)
+```
+
+### 2. Oprette en Ny Branch
+```bash
+git checkout -b [branch-navn]     # Opret og skift til ny branch
+# Eller moderne syntax:
+git switch -c [branch-navn]       # Opret og skift til ny branch
+```
+
+### 3. Skifte Mellem Branches
+```bash
+git checkout [branch-navn]        # Skift til eksisterende branch
+# Eller moderne syntax:
+git switch [branch-navn]          # Skift til eksisterende branch
+```
+
+### 4. Se Hvilken Branch Du Er På
+```bash
+git branch                        # Aktiv branch markeret med *
+git status                        # Viser også aktiv branch
+```
+
+---
+
+## Komplet Workflow Guide
+
+### Trin 1: Opret Feature Branch
+```bash
+# Start fra main branch
+git checkout main
+git pull origin main              # Hent seneste ændringer
+
+# Opret ny feature branch
+git checkout -b feature/dark-mode
+```
+
+### Trin 2: Arbejd på Feature
+```bash
+# Lav dine ændringer...
+# Tilføj filer til staging
+git add .
+
+# Commit ændringer
+git commit -m "✨ Tilføj dark mode funktionalitet"
+
+# Push branch til remote
+git push origin feature/dark-mode
+```
+
+### Trin 3: Merge til Main
+```bash
+# Skift til main branch
+git checkout main
+
+# Hent seneste ændringer
+git pull origin main
+
+# Merge feature branch
+git merge feature/dark-mode
+
+# Push opdateret main
+git push origin main
+```
+
+### Trin 4: Cleanup (Valgfrit)
+```bash
+# Slet lokal branch
+git branch -d feature/dark-mode
+
+# Slet remote branch
+git push origin --delete feature/dark-mode
+```
+
+---
+
+## SagsHub Branching Strategi
+
+### Branch Navngivning
+- `main` - Produktionskode
+- `version-X` - Større versionsudgivelser
+- `feature/feature-navn` - Nye funktioner
+- `bugfix/bug-beskrivelse` - Fejlrettelser
+- `hotfix/kritisk-fix` - Akutte produktionsfixes
+
+### Eksempel Fra SagsHub:
+```bash
+# Version 6 dark mode udvikling
+git checkout -b version-6
+# ... arbejd på dark mode ...
+git add .
+git commit -m "🌙 Forbedret Dark Mode design"
+git checkout main
+git merge version-6
+```
+
+---
+
+## Almindelige Problemer og Løsninger
+
+### Problem: "Your local changes would be overwritten by checkout"
+**Løsning:**
+```bash
+# Commit ændringer først
+git add .
+git commit -m "WIP: Midlertidige ændringer"
+# Eller gem ændringer midlertidigt
+git stash
+git checkout [branch-navn]
+git stash pop  # Gendan ændringer
+```
+
+### Problem: Merge Konflikter
+**Løsning:**
+1. Git vil markere konflikter i filerne
+2. Rediger filerne manuelt for at løse konflikter
+3. Tilføj de løste filer: `git add .`
+4. Afslut merge: `git commit`
+
+### Problem: Forkert Branch
+**Løsning:**
+```bash
+# Se hvilken branch du er på
+git branch
+# Skift til rigtig branch
+git checkout [korrekt-branch]
+```
+
+---
+
+## Best Practices
+
+### 📋 Før Du Starter
+- [ ] Altid start fra opdateret main: `git pull origin main`
+- [ ] Giv branches beskrivende navne
+- [ ] En branch = én feature/opgave
+
+### 💻 Under Udvikling
+- [ ] Commit ofte med beskrivende beskeder
+- [ ] Push regelmæssigt til backup
+- [ ] Test funktionalitet før merge
+
+### 🔄 Ved Merge
+- [ ] Test at alt virker på feature branch
+- [ ] Skift til main og pull seneste ændringer
+- [ ] Merge og test igen
+- [ ] Push til remote
+
+### 🧹 Efter Merge
+- [ ] Slet gamle branches for at holde orden
+- [ ] Opdater dokumentation hvis nødvendigt
+
+---
+
+## Hurtig Reference
+
+| Kommando | Beskrivelse |
+|----------|-------------|
+| `git branch` | Vis alle lokale branches |
+| `git checkout -b [navn]` | Opret og skift til ny branch |
+| `git switch [navn]` | Skift til branch (moderne) |
+| `git merge [branch]` | Merge branch til aktuel branch |
+| `git branch -d [navn]` | Slet lokal branch |
+| `git push origin [branch]` | Push branch til remote |
+| `git pull origin main` | Hent seneste main ændringer |
+
+---
+
+## Eksempel: SagsHub Dark Mode Feature
+
+```bash
+# 1. Start fra main
+git checkout main
+git pull origin main
+
+# 2. Opret feature branch
+git checkout -b feature/dark-mode
+
+# 3. Udvikl funktionalitet
+# ... kode dark mode ...
+git add .
+git commit -m "✨ Tilføj dark mode toggle"
+
+# 4. Push feature
+git push origin feature/dark-mode
+
+# 5. Merge til main
+git checkout main
+git merge feature/dark-mode
+
+# 6. Push opdateret main
+git push origin main
+
+# 7. Cleanup
+git branch -d feature/dark-mode
+```
+
+Dette workflow sikrer at main branch altid er stabil, mens du frit kan eksperimentere på feature branches! 🚀 

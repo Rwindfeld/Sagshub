@@ -51,23 +51,23 @@ export function LiveActivityPanel() {
       case 'case_created':
       case 'customer_created':
       case 'order_created':
-        return 'bg-green-100 text-green-800';
+        return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-200';
       case 'case_updated':
       case 'customer_updated':
       case 'order_updated':
-        return 'bg-blue-100 text-blue-800';
+        return 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200';
       case 'case_status_updated':
-        return 'bg-yellow-100 text-yellow-800';
+        return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-200';
       case 'case_deleted':
-        return 'bg-red-100 text-red-800';
+        return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-200';
       default:
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-gray-100 text-gray-800 dark:bg-gray-800/50 dark:text-gray-200';
     }
   };
 
   return (
-    <Card className="w-full max-w-sm border-4 border-red-500 bg-yellow-100">
-      <CardHeader className="pb-3 bg-blue-100">
+    <Card className="w-full max-w-sm border-2 border-primary/20 bg-card">
+      <CardHeader className="pb-3 bg-primary/5 dark:bg-primary/10">
         <div className="flex items-center justify-between">
           <CardTitle className="text-lg flex items-center gap-2 font-bold">
             🔔 Live Aktivitet
@@ -94,31 +94,32 @@ export function LiveActivityPanel() {
           </div>
         </div>
         {/* Debug information - ALTID SYNLIG */}
-        <div className="text-xs text-gray-700 space-y-1 bg-white p-2 rounded">
+        <div className="text-xs text-muted-foreground mt-2 space-y-1 bg-muted/30 dark:bg-muted/50 p-2 rounded">
           {debugInfo.map((info, index) => (
             <div key={index} className="font-mono">{info}</div>
           ))}
-          <div className="font-bold text-red-600">
+          <div className="font-bold text-primary">
             Panel ER synligt! Aktiviteter: {activities.length}
           </div>
         </div>
       </CardHeader>
-      <CardContent className="bg-white">
+      <CardContent className="bg-card">
         <ScrollArea className={isExpanded ? "h-96" : "h-48"}>
-          <div className="text-center text-muted-foreground py-8">
-            <div className="text-2xl mb-2">🔔</div>
-            <p className="font-bold">Live Aktivitet Panel</p>
-            <p className="text-sm">Live opdateringer vises her</p>
-            <div className="mt-4 text-xs text-gray-600 bg-gray-100 p-3 rounded">
-              <p><strong>WebSocket URL:</strong> ws://localhost:3000</p>
-              <p><strong>Status:</strong> {isConnected ? '✅ Forbundet' : '❌ Ikke forbundet'}</p>
-              <p><strong>Aktiviteter modtaget:</strong> {activities.length}</p>
+          {activities.length === 0 ? (
+            <div className="text-center text-muted-foreground py-8">
+              <div className="text-2xl mb-2">🔔</div>
+              <p className="font-bold">Live Aktivitet Panel</p>
+              <p className="text-sm">Live opdateringer vises her</p>
+              <div className="mt-4 text-xs text-muted-foreground bg-muted/30 dark:bg-muted/50 p-3 rounded">
+                <p><strong>WebSocket URL:</strong> ws://{window.location.hostname}:3000</p>
+                <p><strong>Status:</strong> {isConnected ? '✅ Forbundet' : '❌ Ikke forbundet'}</p>
+                <p><strong>Aktiviteter modtaget:</strong> {activities.length}</p>
+                <p><strong>Venter på aktiviteter...</strong></p>
+              </div>
             </div>
-          </div>
-          
-          {activities.length > 0 && (
-            <div className="space-y-3 mt-4">
-              <h3 className="font-bold text-green-600">Aktiviteter:</h3>
+          ) : (
+            <div className="space-y-3 p-2">
+              <h3 className="font-bold text-primary">Live Aktiviteter ({activities.length})</h3>
               {activities.map((activity) => (
                 <div
                   key={activity.id}

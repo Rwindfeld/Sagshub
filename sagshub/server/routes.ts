@@ -1,202 +1,297 @@
-import type { Express } from "express";
-import { createServer, type Server } from "http";
-import { setupAuth, hashPassword, setupInitialAdmin, migrateUserPasswords } from "./auth";
-import { storage, generateOrderNumber } from "./storage";
-import { insertCaseSchema, insertCustomerSchema, insertUserSchema, insertRMASchema, insertOrderSchema, OrderStatus, CaseStatus } from "../shared/schema";
-import { eq, like, desc, and } from 'drizzle-orm';
-import { z } from "zod";
-import { db } from "./db";
-import { users, internalCases } from "../shared/schema";
-import bcrypt from "bcrypt";
-import { sql } from "drizzle-orm";
-import { findAndTranslateEnglishCases } from './translate';
-import express from "express";
-import { Router } from "express";
-import { registerRoutes as registerAdditionalRoutes } from "./routes/index.js";
-import { broadcastLiveUpdate } from "./index.js";
+// =============================================================================
+// SAGSHUB SERVER ROUTING KONFIGURATION
+// =============================================================================
+// Denne fil implementerer alle HTTP routes for SagsHub backend serveren og indeholder:
+// - Authentication og sikkerhedsmiddleware
+// - RESTful API endpoints til alle funktionaliteter
+// - Kunde, sag, RMA og ordre management routes
+// - Interne beskeder og brugeradministration
+// - Automatisk nummer generering til sager, RMA'er og ordrer
+// - Real-time opdateringer via WebSocket broadcasting
+// =============================================================================
 
+// Import af Express types og HTTP server
+import type { Express } from "express";                        // Express app type
+import { createServer, type Server } from "http";             // HTTP server types
+
+// Import af authentication og sikkerhedsfunktioner
+import { setupAuth, hashPassword, setupInitialAdmin, migrateUserPasswords } from "./auth"; // Auth utilities
+
+// Import af database storage layer
+import { storage, generateOrderNumber } from "./storage";      // Database operations
+
+// Import af schema og validation
+import { insertCaseSchema, insertCustomerSchema, insertUserSchema, insertRMASchema, insertOrderSchema, OrderStatus, CaseStatus } from "../shared/schema";
+
+// Import af Drizzle ORM operatorer
+import { eq, like, desc, and } from 'drizzle-orm';             // Query operators
+
+// Import af validation og utilities
+import { z } from "zod";                                       // Schema validation
+import { db } from "./db";                                     // Database forbindelse
+import { users, internalCases } from "../shared/schema";       // Tabel definitioner
+import bcrypt from "bcrypt";                                   // Password hashing
+import { sql } from "drizzle-orm";                             // Raw SQL execution
+
+// Import af oversættelsesfunktioner
+import { findAndTranslateEnglishCases } from './translate';    // Case translation utility
+
+// Import af Express og routing
+import express from "express";                                 // Express framework
+import { Router } from "express";                              // Express router
+
+// Import af modulære routes og live updates
+import { registerRoutes as registerAdditionalRoutes } from "./routes/index.js"; // Modulære routes
+import { broadcastLiveUpdate, getRecentActivities } from "./index.js"; // Live update system
+
+// =============================================================================
+// VALIDATION SCHEMAS
+// =============================================================================
+
+// Zod schema til validering af status opdateringer
 const updateStatusSchema = z.object({
-  status: z.enum([
-    'created',
-    'in_progress',
-    'offer_created',
-    'waiting_customer',
-    'offer_accepted',
-    'offer_rejected',
-    'waiting_parts',
-    'preparing_delivery',
-    'ready_for_pickup',
-    'completed'
+  status: z.enum([                                             // Godkendte status værdier
+    'created',                                                 // Ny sag oprettet
+    'in_progress',                                             // Under behandling
+    'offer_created',                                           // Tilbud sendt
+    'waiting_customer',                                        // Afventer kunde respons
+    'offer_accepted',                                          // Tilbud accepteret
+    'offer_rejected',                                          // Tilbud afvist
+    'waiting_parts',                                           // Venter på reservedele
+    'preparing_delivery',                                      // Forbereder udlevering
+    'ready_for_pickup',                                        // Klar til afhentning
+    'completed'                                                // Sag afsluttet
   ] as const),
-  comment: z.string().min(1, "Kommentar er påkrævet"),
-  updatedByName: z.string().optional(),
+  comment: z.string().min(1, "Kommentar er påkrævet"),        // Obligatorisk kommentar
+  updatedByName: z.string().optional(),                       // Valgfri opdateret-af navn
 });
 
-// Funktion til at oversætte status til dansk
+// =============================================================================
+// UTILITY FUNKTIONER
+// =============================================================================
+
+// Oversætter status keys til læsbare danske tekster
 function translateStatus(status: string): string {
   const statusTranslations: Record<string, string> = {
-    'created': 'Oprettet',
-    'in_progress': 'Under behandling',
-    'offer_created': 'Tilbud oprettet',
-    'waiting_customer': 'Afventer kunde',
-    'offer_accepted': 'Tilbud accepteret',
-    'offer_rejected': 'Tilbud afvist',
-    'waiting_parts': 'Venter på dele',
-    'preparing_delivery': 'Klargør levering',
-    'ready_for_pickup': 'Klar til afhentning',
-    'completed': 'Afsluttet',
-    // RMA status
-    'oprettet': 'Oprettet',
-    'under_behandling': 'Under behandling',
-    'afsluttet': 'Afsluttet',
-    // Order status
-    'pending': 'Afventer',
-    'ordered': 'Bestilt',
-    'received': 'Modtaget',
-    'delivered': 'Leveret',
-    'cancelled': 'Annulleret'
+    // Case status oversættelser
+    'created': 'Oprettet',                                     // Ny sag
+    'in_progress': 'Under behandling',                         // Arbejder på sagen
+    'offer_created': 'Tilbud oprettet',                        // Tilbud sendt til kunde
+    'waiting_customer': 'Afventer kunde',                      // Venter på kunde respons
+    'offer_accepted': 'Tilbud accepteret',                     // Kunde sagde ja
+    'offer_rejected': 'Tilbud afvist',                         // Kunde sagde nej
+    'waiting_parts': 'Venter på dele',                         // Afventer reservedele
+    'preparing_delivery': 'Klargør levering',                  // Pakker til kunde
+    'ready_for_pickup': 'Klar til afhentning',                 // Kunde kan hente
+    'completed': 'Afsluttet',                                  // Sag lukket
+    
+    // RMA status oversættelser
+    'oprettet': 'Oprettet',                                    // Ny RMA
+    'under_behandling': 'Under behandling',                    // RMA behandles
+    'afsluttet': 'Afsluttet',                                  // RMA lukket
+    
+    // Order status oversættelser
+    'pending': 'Afventer',                                     // Afventer behandling
+    'ordered': 'Bestilt',                                      // Ordre afgivet
+    'received': 'Modtaget',                                    // Varer modtaget
+    'delivered': 'Leveret',                                    // Leveret til kunde
+    'cancelled': 'Annulleret'                                  // Ordre annulleret
   };
   
-  return statusTranslations[status] || status;
+  return statusTranslations[status] || status;                 // Fallback til original status
 }
 
-// Helper function for generating case numbers
+// Genererer automatiske sagsnumre baseret på behandlingstype
 async function generateCaseNumber(treatment: string): Promise<string> {
+  // Mapping af behandlingstyper til præfikser
   const prefix = {
-    'repair': 'REP',
-    'warranty': 'REK',
-    'setup': 'KLA',
-    'other': 'AND',
-  }[treatment] || 'AND';
+    'repair': 'REP',                                           // Reparation
+    'warranty': 'REK',                                         // Reklamation/garanti
+    'setup': 'KLA',                                            // Klargøring/setup
+    'other': 'AND',                                            // Andre opgaver
+  }[treatment] || 'AND';                                       // Fallback til 'AND'
 
   try {
     console.log(`Generating case number for prefix: ${prefix}`);
+    
+    // Henter seneste sager med samme præfiks
     const cases = await storage.getLatestCaseNumber(prefix);
     console.log(`Latest cases for prefix ${prefix}:`, cases);
-    let number = 1;
+    
+    let number = 1;                                            // Start nummer (hvis ingen eksisterende sager)
 
     if (cases && cases.length > 0) {
-      const latestCase = cases[0];
+      const latestCase = cases[0];                             // Seneste sag
       console.log(`Latest case found: ${JSON.stringify(latestCase)}`);
+      
+      // Ekstraherer nummer fra sagsnummer (f.eks. REP00042 -> 42)
       const match = latestCase.caseNumber.match(/\d+/);
       if (match) {
-        number = parseInt(match[0]) + 1;
+        number = parseInt(match[0]) + 1;                       // Næste nummer i sekvens
         console.log(`Extracted number: ${match[0]}, Next number: ${number}`);
       }
     } else {
       console.log(`No cases found with prefix ${prefix}, starting with number 1`);
     }
 
-    return `${prefix}${number.toString().padStart(5, '0')}`;
+    // Returnerer formateret sagsnummer (f.eks. REP00043)
+    return `${prefix}${number.toString().padStart(5, '0')}`;   // Padding med nuller til 5 cifre
   } catch (error) {
     console.error("Error generating case number:", error);
-    return `${prefix}00001`;
+    return `${prefix}00001`;                                   // Fallback ved fejl
   }
 }
 
+// =============================================================================
+// AUTHENTICATION MIDDLEWARE
+// =============================================================================
+
+// Middleware til at verificere bruger authentication
 const authenticateToken = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  // Tjekker om session eksisterer og indeholder bruger ID
   if (!req.session || !req.session.userId) {
     console.log('Ingen gyldig session fundet');
-    return res.status(401).json({ error: 'Ikke autoriseret' });
+    return res.status(401).json({ error: 'Ikke autoriseret' }); // Returnerer 401 Unauthorized
   }
   
+  // Tilføjer bruger info til request objektet
   req.user = { id: req.session.userId };
   console.log(`Bruger autentificeret med ID: ${req.session.userId}`);
-  next();
+  next();                                                      // Fortsætter til næste middleware/route
 };
 
+// =============================================================================
+// HOVED ROUTING REGISTRERING FUNKTION
+// =============================================================================
+
+// Hovedfunktion der registrerer alle routes på Express app
 export async function registerRoutes(app: Express): Promise<void> {
-  // Setup authentication
+  // =================================================================
+  // INITIAL SETUP OG AUTHENTICATION
+  // =================================================================
+  
+  // Opsætter authentication middleware (sessions, passport, etc.)
   setupAuth(app);
   
-  // Register cases router
-  // Cases routes are now included in registerAdditionalRoutes
-  
-  // Register additional routes (including user management)
+  // Registrerer alle modulære routes fra separate filer
   await registerAdditionalRoutes(app);
   
-  // Migrate existing passwords to secure format
+  // =================================================================
+  // DATABASE MIGRATIONS OG INITIAL DATA
+  // =================================================================
+  
+  // Migrerer eksisterende passwords til sikker format (bcrypt)
   try {
-    await migrateUserPasswords();
+    await migrateUserPasswords();                              // Konverterer gamle passwords
   } catch (error) {
     console.error('Failed to migrate passwords:', error);
   }
   
-  // Setup initial admin if needed
+  // Opretter initial admin bruger hvis der ikke eksisterer nogen
   await setupInitialAdmin();
 
-  // Create customer users for existing customers
+  // Opretter kunde-bruger konti for alle eksisterende kunder
   try {
-    await storage.createOrUpdateCustomerUsers();
+    await storage.createOrUpdateCustomerUsers();              // Sikrer alle kunder har login adgang
   } catch (error) {
     console.error('Error creating customer users:', error);
   }
 
-  // Health check endpoint - dette er offentligt tilgængeligt
+  // =================================================================
+  // PUBLIC ENDPOINTS (INGEN AUTHENTICATION KRÆVET)
+  // =================================================================
+  
+  // Health check endpoint - bruges til monitoring og load balancer checks
   app.get("/api/health", (req, res) => {
-    res.status(200).json({ status: "OK" });
+    res.json({ 
+      status: "ok",                                            // Server status
+      timestamp: new Date().toISOString()                     // Nuværende timestamp
+    });
   });
 
+  // HEAD variant af health check (returnerer kun status headers)
   app.head("/api/health", (req, res) => {
-    res.status(200).send();
+    res.status(200).send();                                    // Tom respons med 200 OK status
   });
 
-  // Endpoint til at hente antal ulæste interne sager
+  // =================================================================
+  // INTERNE BESKEDER ENDPOINTS
+  // =================================================================
+  
+  // Henter antal ulæste interne beskeder for bruger
   app.get("/api/internal-cases/unread-count", async (req, res) => {
+    // Authentication check - kun autentificerede brugere
     if (!req.isAuthenticated()) {
       return res.status(401).json({ error: "Ikke autoriseret" });
     }
 
     try {
-      const userId = req.user?.id;
+      const userId = req.user?.id;                             // Henter bruger ID fra session
       if (!userId) {
         return res.status(401).json({ error: "Ikke autoriseret" });
       }
 
       console.log('Getting unread count for user:', userId);
+      
       try {
-      const count = await storage.getUnreadInternalCasesCount(userId);
-      console.log('Unread count:', count);
-        return res.json({ count });
+        // Kalder database for at få antal ulæste beskeder
+        const count = await storage.getUnreadInternalCasesCount(userId);
+        console.log('Unread count:', count);
+        return res.json({ count });                            // Returnerer count som JSON
       } catch (error) {
         console.error("Database error getting unread count:", error);
-        return res.status(500).json({ error: "Database fejl", count: 0 });
+        return res.status(500).json({ 
+          error: "Database fejl", 
+          count: 0                                             // Fallback til 0 ved database fejl
+        });
       }
     } catch (error) {
       console.error("Error getting unread internal cases count:", error);
-      res.status(500).json({ error: "Der opstod en fejl ved hentning af antal ulæste interne sager" });
+      res.status(500).json({ 
+        error: "Der opstod en fejl ved hentning af antal ulæste interne sager" 
+      });
     }
   });
 
-  // Customer management routes
+  // =================================================================
+  // KUNDE MANAGEMENT ENDPOINTS
+  // =================================================================
+  
+  // Henter paginerede kunder (kun for medarbejdere)
   app.get("/api/customers", async (req, res) => {
+    // Authorization check - kun medarbejdere kan se alle kunder
     if (!req.isAuthenticated() || !req.user.isWorker) return res.sendStatus(403);
 
-    const page = parseInt(req.query.page as string) || 1;
-    const pageSize = parseInt(req.query.pageSize as string) || 6;
-    const searchTerm = req.query.search as string;
+    // Parsing af query parametre med defaults
+    const page = parseInt(req.query.page as string) || 1;      // Side nummer (default: 1)
+    const pageSize = parseInt(req.query.pageSize as string) || 6; // Items per side (default: 6)
+    const searchTerm = req.query.search as string;             // Søgeterm (optional)
 
     console.log(`Customers endpoint called with: page=${page}, pageSize=${pageSize}, searchTerm="${searchTerm}"`);
 
+    // Henter paginerede kunder fra database
     const customers = await storage.getPaginatedCustomers(page, pageSize, searchTerm);
     console.log(`Returning ${customers.items.length} customers out of ${customers.total} total`);
-    res.json(customers);
+    
+    res.json(customers);                                       // Returnerer paginerede resultater
   });
 
-  // Customer search route 
+  // Søger i kunder baseret på søgeterm
   app.get("/api/customers/search", async (req, res) => {
+    // Authorization check - kun medarbejdere
     if (!req.isAuthenticated() || !req.user.isWorker) return res.sendStatus(403);
 
     try {
-      const searchTerm = req.query.q as string;
+      const searchTerm = req.query.q as string;                // Henter søgeterm fra query
       console.log("Received search request with term:", searchTerm);
       
       if (!searchTerm) {
-        // Hvis intet søgeord, returnér alle kunder
+        // Hvis ingen søgeterm, returnér alle kunder
         const allCustomers = await storage.getCustomers();
         return res.json(allCustomers);
       }
 
+      // Udfører søgning i database
       const customers = await storage.searchCustomers(searchTerm);
       console.log("Found customers:", customers);
       res.json(customers);
@@ -205,7 +300,6 @@ export async function registerRoutes(app: Express): Promise<void> {
       res.status(500).json({ error: "Der opstod en fejl ved søgning efter kunder" });
     }
   });
-
 
   app.get("/api/customers/:id", async (req, res) => {
     if (!req.isAuthenticated() || !req.user.isWorker) return res.sendStatus(403);
@@ -1142,6 +1236,16 @@ export async function registerRoutes(app: Express): Promise<void> {
         .where(eq(internalCases.id, id))
         .returning();
       
+      // =================================================================
+      // BROADCASTER LIVE UPDATE FOR MARKERING SOM LÆST
+      // =================================================================
+      // Sender WebSocket besked om at beskeden er markeret som læst
+      broadcastLiveUpdate('internal_case_read', {
+        internalCase: updatedCase,
+        readBy: req.user.name,
+        message: `${req.user.name} har læst en intern besked`
+      });
+      
       res.json(updatedCase);
     } catch (error) {
       console.error("Error marking internal case as read:", error);
@@ -1160,6 +1264,12 @@ export async function registerRoutes(app: Express): Promise<void> {
         return res.status(400).json({ error: "Manglende påkrævede felter" });
       }
       
+      // Hent modtager info for bedre besked
+      const [receiver] = await db
+        .select({ name: users.name })
+        .from(users)
+        .where(eq(users.id, receiverId));
+      
       const [newInternalCase] = await db
         .insert(internalCases)
         .values({
@@ -1172,6 +1282,18 @@ export async function registerRoutes(app: Express): Promise<void> {
           updatedAt: new Date()
         })
         .returning();
+      
+      // =================================================================
+      // BROADCASTER LIVE UPDATE FOR INTERN BESKED
+      // =================================================================
+      // Sender WebSocket besked til alle tilsluttede klienter om ny intern besked
+      broadcastLiveUpdate('internal_case_created', {
+        internalCase: newInternalCase,
+        senderName: req.user.name,
+        receiverName: receiver?.name || 'Ukendt modtager',
+        caseId: caseId,
+        message: `${req.user.name} har sendt en intern besked til ${receiver?.name || 'modtager'}`
+      });
       
       res.status(201).json(newInternalCase);
     } catch (error) {
@@ -1337,6 +1459,18 @@ export async function registerRoutes(app: Express): Promise<void> {
     } catch (error) {
       console.error("Error exporting customer data:", error);
       res.status(500).json({ error: "Der opstod en fejl ved eksport af kundedata" });
+    }
+  });
+
+  // Live aktiviteter endpoint
+  app.get("/api/live-activities", (req, res) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 20;
+      const activities = getRecentActivities(limit);
+      res.json(activities);
+    } catch (error) {
+      console.error('Error fetching live activities:', error);
+      res.status(500).json({ error: 'Kunne ikke hente live aktiviteter' });
     }
   });
 }

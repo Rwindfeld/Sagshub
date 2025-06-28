@@ -82,13 +82,42 @@ export default function RMADashboard() {
   // Create RMA mutation
   const createRMAMutation = useMutation({
     mutationFn: async (formData: any) => {
+      console.log("Sender RMA data:", formData);
+      
+      // Valider at påkrævede felter er til stede
+      if (!formData.customerId) {
+        throw new Error("Kunde ID er påkrævet");
+      }
+      if (!formData.description) {
+        throw new Error("Beskrivelse er påkrævet");
+      }
+      if (!formData.deliveryDate) {
+        throw new Error("Leveringsdato er påkrævet");
+      }
+      
       // Tilføj aktuel status
       const data = {
         ...formData,
-        status: 'oprettet' // Brug den danske værdi fra RMAStatus.CREATED
+        status: 'created' // Brug engelsk værdi fra backend schema
       };
       
       const res = await apiRequest("POST", "/api/rma", data);
+      
+      if (!res.ok) {
+        const errorData = await res.json();
+        console.error("RMA API fejl:", errorData);
+        
+        // Håndter Zod validation fejl
+        if (errorData.issues) {
+          const errors = errorData.issues.map((issue: any) => 
+            `${issue.path.join('.')}: ${issue.message}`
+          ).join(', ');
+          throw new Error(`Validationsfejl: ${errors}`);
+        }
+        
+        throw new Error(errorData.message || `HTTP fejl: ${res.status}`);
+      }
+      
       return res.json();
     },
     onSuccess: () => {
@@ -99,8 +128,9 @@ export default function RMADashboard() {
       });
     },
     onError: (error: Error) => {
+      console.error("RMA oprettelse fejl:", error);
       toast({
-        title: "Fejl",
+        title: "Fejl ved oprettelse af RMA",
         description: error.message,
         variant: "destructive",
       });
