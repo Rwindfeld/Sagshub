@@ -226,3 +226,37 @@ For spørgsmål og support, kontakt projektudvikleren eller opret et issue på G
 ---
 
 **SagsHub** - Moderne sagsstyring for den digitale tidsalder 🚀
+
+# Funktioner og fordele i Sagshub
+
+Sagshub er udviklet til at gøre sagsstyring, kundehåndtering og daglig drift nemmere, hurtigere og mere sikker for små og mellemstore virksomheder – især IT-reparationsværksteder. Her er nogle af de vigtigste funktioner og fordele:
+
+## Funktioner
+- **Komplet digital sagsstyring:** Håndter reparationer, returvarer (RMA), garantisager og meget mere i ét samlet system.
+- **Automatisk sagsnummer og historik:** Unikke sagsnumre og fuld historik på alle sager.
+- **Kundeportal:** Kunder kan følge status på deres sag direkte via virksomhedens hjemmeside.
+- **Rollebaseret adgang:** Differentierede brugerroller (medarbejder, admin, kunde) med tilpassede rettigheder.
+- **Avanceret dashboard:** Få overblik over sager, opgaver, nøgletal og alarmer for sager uden opdateringer.
+- **Intelligent søgning og filtrering:** Lynhurtig søgning og filtrering på tværs af sager, kunder og opgaver.
+- **Status- og opgavestyring:** Tilpas statustrin og arbejdsgange, så de matcher virksomhedens processer.
+- **Interne beskeder:** Del sager og kommuniker effektivt internt mellem medarbejdere.
+- **Integration med leverandører:** Understøtter delebestillinger og ordrehåndtering.
+- **Detaljeret produktsporing:** Varenumre, serienumre og tilbehør registreres nemt.
+- **Live-opdateringer:** Real-time statusopdateringer via WebSocket-teknologi.
+- **Statistik og rapportering:** Få indsigt i sagsflow, arbejdstid, trends og nøgletal.
+- **Udskriftsfunktion:** Print følgesedler og sagsoversigter direkte fra systemet.
+- **Responsivt design:** Fungerer på computer, tablet og mobil – adgang fra alle enheder på netværket.
+- **Lokal database:** Alle data opbevares sikkert og fortroligt på virksomhedens egen hardware.
+- **Plug-and-play installation:** Systemet leveres på en minicomputer, der hurtigt sættes op i værkstedet.
+- **Skalerbarhed:** Systemet kan vokse med virksomheden og håndtere store datamængder.
+
+## Fordele
+- **Sikkerhed og privatliv:** Ingen data forlader virksomheden – alt kører lokalt.
+- **Billig i drift:** Lavt strømforbrug, ingen dyre servere eller skjulte gebyrer.
+- **Ingen binding eller opstartsgebyr:** Prøv Sagshub gratis og risikofrit.
+- **Brugervenlighed:** Moderne, intuitivt interface med mulighed for dark mode.
+- **Fleksibel tilpasning:** Systemet kan tilpasses virksomhedens præcise behov – både før, under og efter opsætning.
+- **Direkte support:** Få personlig kontakt til udvikleren og indflydelse på fremtidige funktioner.
+- **Fremtidssikret:** Understøtter integration til mobil-app, API til tredjeparter og flere notifikationsmuligheder.
+
+---
