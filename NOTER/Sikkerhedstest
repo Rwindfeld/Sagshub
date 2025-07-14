@@ -1,4 +1,0 @@
-Jeg har gennemført flere sikkerhedstests af systemet. Først og fremmest har jeg testet login-funktionaliteten grundigt - både for medarbejdere og kunder. 
-Jeg har verifikeret at systemet korrekt afviser forkert brugernavn og adgangskode, og at kundelogin kun virker med gyldige sagsnumre.
-Jeg har også testet netværkssikkerheden ved at konfigurere CORS til en statisk IP og verificeret at adgang kun er mulig fra det autoriserede netværk. Dette er særligt vigtigt for os, da systemet primært skal bruges internt i virksomheden.
-En anden vigtig sikkerhedsfunktion jeg har testet er session timeout - jeg har bekræftet at brugere automatisk bliver logget ud efter 24 timer, hvilket er en ekstra sikkerhedsforanstaltning mod uautoriseret adgang.
