@@ -1,0 +1,26 @@
+# Dependencies 
+node_modules/
+vendor/
+dist/
+build/
+out/
+
+# Build artifacts
+*.log
+
+# Binary files
+*.exe
+*.asar
+*.dll
+*.zip
+*.tar.gz
+*.pdf
+
+# DB og klient binærer
+sagshub/client/postgresql.exe
+sagshub/SagsHub-Distribution/
+sagshub/dist-electron/
+
+# OS files
+.DS_Store
+venv/

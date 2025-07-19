@@ -1,0 +1,1615 @@
+// =============================================================================
+// SAGSHUB ADMINISTRATIONSSIDE
+// =============================================================================
+// Denne komponent implementerer den centrale administrationsside og indeholder:
+// - Brugeradministration (opret, rediger, slet medarbejdere)
+// - Systemstatistikker og rapporter med grafer
+// - Kundedetaljer og kundens historie
+// - PDF eksport af kundedata
+// - Responsiv dashboard med tabs og paginering
+// - Omfattende datavisualiseringer med Recharts
+// =============================================================================
+
+// Import af autentificering og React Query hooks
+import { useAuth } from "@/context/auth-context";              // Authentication context
+import { useQuery, useMutation } from "@tanstack/react-query"; // TanStack Query for data fetching
+
+// Import af schema og type definitioner
+import { User, InsertUser, insertUserSchema, createUserSchema, updateUserSchema, CaseStatus, PriorityType } from "@shared/schema";
+
+// Import af UI hooks og komponenter
+import { useToast } from "@/hooks/use-toast";                  // Toast notifikationer
+import { Button } from "@/components/ui/button";               // Button komponent
+
+// Import af ikoner fra Lucide React
+import { Plus, Trash2, Edit2, Info, BarChart as BarChartIcon, FileText, Clock, Users, Activity, Package, AlertCircle, CalendarIcon, ChevronLeft, ChevronRight, ArrowUpRight, ArrowDownRight } from "lucide-react";
+
+// Import af UI komponenter til tabeller og layout
+import {
+  Table,                                                       // Tabel komponenter
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+
+import {
+  Sheet,                                                       // Side panel komponenter
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
+
+import {
+  AlertDialog,                                                 // Bekræftelses dialog komponenter
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+
+// Import af form håndtering
+import { useForm } from "react-hook-form";                     // React Hook Form
+import { zodResolver } from "@hookform/resolvers/zod";         // Zod validation resolver
+
+import {
+  Form,                                                        // Form komponenter
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+
+import { Input } from "@/components/ui/input";                 // Input felt
+import { apiRequest, queryClient } from "@/lib/queryClient";   // API utility functions
+import { Checkbox } from "@/components/ui/checkbox";           // Checkbox komponent
+import { MenuLayout } from "@/components/menu-layout";         // Layout med menu
+
+// Import af React hooks og state management
+import { useState, useEffect } from "react";                   // React state hooks
+
+// Import af UI komponenter til tabs og søgning
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"; // Tab navigation
+import CustomerSearchInput from "@/components/customer-search-input"; // Kunde søgning
+
+// Import af PDF generation biblioteker
+import jsPDF from 'jspdf';                                     // PDF generation
+import autoTable from 'jspdf-autotable';                      // PDF tabel generation
+
+// Import af query hooks til data fetching
+import { useCasesQuery } from '@/queries/cases';               // Sager query
+import { useAllCustomersQuery } from '@/queries/customers';    // Kunder query
+import { useRMAsQuery } from '@/queries/rma';                  // RMA query
+import { useOrdersQuery } from '@/queries/orders';             // Ordrer query
+
+// Import af chart komponenter til datavisualisering
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'; // Recharts bibliotek
+
+// Import af dato utilities
+import { format, parseISO, subMonths } from 'date-fns';        // Dato formatering
+import { differenceInDays } from 'date-fns';                  // Dato beregninger
+
+// Import af UI komponenter til dropdowns og kalender
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { cn } from '@/lib/utils';                              // CSS class utility
+
+// =============================================================================
+// UTILITY FUNKTIONER TIL STATUS LABELS
+// =============================================================================
+
+// Konverterer status keys til læsbare danske labels
+function getStatusLabel(key: string) {
+  const labels: Record<string, string> = {
+    created: "Oprettet",                                       // Ny sag oprettet
+    in_progress: "I gang",                                     // Under behandling
+    offer_created: "Tilbud oprettet",                          // Tilbud sendt til kunde
+    waiting_customer: "Venter på kunde",                       // Afventer kunde respons
+    offer_accepted: "Tilbud accepteret",                       // Kunde accepterede tilbud
+    offer_rejected: "Tilbud afvist",                           // Kunde afviste tilbud
+    waiting_parts: "Venter på dele",                           // Bestilling af reservedele
+    preparing_delivery: "Forbereder udlevering",               // Pakker/klargør til kunde
+    ready_for_pickup: "Klar til afhentning",                   // Kunde kan hente
+    completed: "Afsluttet",                                    // Sag lukket
+  };
+  return labels[key] || key;                                   // Fallback til original key
+}
+
+// Konverterer prioritet keys til læsbare danske labels
+function getPriorityLabel(key: string) {
+  const labels: Record<string, string> = {
+    free_diagnosis: "Gratis diagnose",                         // Standard gratis check
+    four_days: "4-dages prioritet",                            // Levering inden 4 dage
+    first_priority: "Første prioritet",                        // Højeste prioritet
+    asap: "Haster (ASAP)",                                     // Akut - så hurtigt som muligt
+  };
+  return labels[key] || key;                                   // Fallback til original key
+}
+
+// =============================================================================
+// HOVEDAD ADMIN KOMPONENT
+// =============================================================================
+export default function AdminPage() {
+  // =================================================================
+  // CONTEXT OG HOOKS INITIALISERING
+  // =================================================================
+  
+  // Henter bruger info og toast funktionalitet fra contexts
+  const { user } = useAuth();                                  // Nuværende bruger (fra auth context)
+  const { toast } = useToast();                               // Toast notifikationer
+
+  // =================================================================
+  // DATA FETCHING QUERIES
+  // =================================================================
+  
+  // Henter alle systembrugere (medarbejdere)
+  const { data: users, isLoading } = useQuery<User[]>({
+    queryKey: ["/api/users"],                                  // Cache key til TanStack Query
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/users");       // API kald til backend
+      return res.json();                                       // Parser JSON response
+    },
+  });
+
+  // =================================================================
+  // COMPONENT STATE MANAGEMENT
+  // =================================================================
+  
+  // State til brugeradministration
+  const [editingUser, setEditingUser] = useState<User | null>(null); // Bruger der redigeres (null = ny bruger)
+  const [isSheetOpen, setIsSheetOpen] = useState(false);      // Side panel åben/lukket
+  
+  // State til tab navigation (admins starter på users, andre på stats)
+  const [tab, setTab] = useState(user?.isAdmin ? "users" : "stats");
+  
+  // State til kundedetaljer sektion
+  const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(null); // Valgt kunde til detaljer
+  const [isSearchingCustomer, setIsSearchingCustomer] = useState(false); // Søgning i gang
+  
+  // State til sletning af kunde (dobbelt bekræftelse)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false); // Første bekræftelse
+  const [showFinalConfirm, setShowFinalConfirm] = useState(false); // Final bekræftelse
+
+  // =================================================================
+  // PAGINATION STATE TIL MEDARBEJDERLISTE
+  // =================================================================
+  const [staffPage, setStaffPage] = useState(1);              // Nuværende side nummer
+  const USERS_PER_PAGE = 5;                                   // Antal brugere per side
+
+  // Filtrerer kun medarbejdere og admins (ikke kunder)
+  const staff = (users || []).filter(u => u.isWorker || u.isAdmin);
+
+  // Beregner paginerede data for medarbejderliste
+  const paginatedStaff = staff.slice((staffPage-1)*USERS_PER_PAGE, staffPage*USERS_PER_PAGE);
+  const staffTotalPages = Math.ceil(staff.length / USERS_PER_PAGE) || 1; // Total antal sider (minimum 1)
+
+  // =================================================================
+  // KUNDE DETALJER QUERIES
+  // =================================================================
+  
+  // Henter kunde information for valgt kunde
+  const { data: customerData } = useQuery({
+    queryKey: ["/api/customers", selectedCustomerId],          // Cache key inkluderer kunde ID
+    queryFn: async () => {
+      if (!selectedCustomerId) return null;                    // Kør ikke hvis ingen kunde valgt
+      const res = await apiRequest("GET", `/api/customers/${selectedCustomerId}`);
+      return res.json();
+    },
+    enabled: !!selectedCustomerId,                             // Kun aktiv når kunde er valgt
+  });
+
+  // Henter alle sager for valgt kunde
+  const { data: customerCases } = useQuery({
+    queryKey: ["/api/customers", selectedCustomerId, "cases"], // Cache key til kunde sager
+    queryFn: async () => {
+      if (!selectedCustomerId) return null;
+      const res = await apiRequest("GET", `/api/customers/${selectedCustomerId}/cases`);
+      return res.json();
+    },
+    enabled: !!selectedCustomerId,                             // Kun aktiv når kunde er valgt
+  });
+
+  // Henter alle ordrer for valgt kunde
+  const { data: customerOrders } = useQuery({
+    queryKey: ["/api/customers", selectedCustomerId, "orders"], // Cache key til kunde ordrer
+    queryFn: async () => {
+      if (!selectedCustomerId) return null;
+      const res = await apiRequest("GET", `/api/customers/${selectedCustomerId}/orders`);
+      return res.json();
+    },
+    enabled: !!selectedCustomerId,                             // Kun aktiv når kunde er valgt
+  });
+
+  // Henter alle RMA'er for valgt kunde (med error handling)
+  const { data: customerRmas } = useQuery({
+    queryKey: ["/api/customers", selectedCustomerId, "rmas"],  // Cache key til kunde RMA'er
+    queryFn: async () => {
+      if (!selectedCustomerId) return null;
+      try {
+        const res = await apiRequest("GET", `/api/customers/${selectedCustomerId}/rmas`);
+        if (res.status === 404) return [];                     // Returnerer tom array hvis ikke fundet
+        return res.json();
+      } catch {
+        return [];                                             // Fallback til tom array ved fejl
+      }
+    },
+    enabled: !!selectedCustomerId,                             // Kun aktiv når kunde er valgt
+  });
+
+  // =================================================================
+  // FORM MANAGEMENT
+  // =================================================================
+  
+  // React Hook Form til brugeroprettelse/redigering
+  const form = useForm<InsertUser>({
+    resolver: zodResolver(editingUser ? insertUserSchema : insertUserSchema), // Zod validation
+    defaultValues: {                                           // Standard værdier for nye brugere
+      username: "",                                            // Tomt brugernavn
+      password: "",                                            // Tomt password
+      name: "",                                                // Tomt navn
+      isWorker: true,                                          // Default medarbejder (ikke kun kunde)
+      isAdmin: false,                                          // Default ikke admin
+      birthday: null,                                          // Ingen fødselsdag som standard
+    },
+  });
+
+  // =================================================================
+  // MUTATION FOR BRUGEROPRETTELSE/OPDATERING
+  // =================================================================
+  
+  // Mutation til at oprette eller opdatere brugere
+  const userMutation = useMutation({
+    mutationFn: async (data: InsertUser & { id?: number }) => {
+      const method = data.id ? "PUT" : "POST";                 // PUT til opdatering, POST til oprettelse
+      const endpoint = data.id ? `/api/users/${data.id}` : "/api/users"; // Endpoint baseret på operation
+      const res = await apiRequest(method, endpoint, data);    // API kald
+      return res.json();
+    },
+    onSuccess: () => {                                         // Callback når mutation succeeds
+      queryClient.invalidateQueries({ queryKey: ["/api/users"] }); // Invaliderer cache så data refreshes
+      toast({                                                  // Viser success toast
+        title: editingUser ? "Bruger opdateret" : "Bruger oprettet",
+        description: editingUser 
+          ? "Medarbejderen er blevet opdateret"
+          : "Den nye medarbejder er blevet oprettet",
+      });
+      form.reset();
+      setEditingUser(null);
+      setIsSheetOpen(false);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Fejl",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteUserMutation = useMutation({
+    mutationFn: async (userId: number) => {
+      const res = await apiRequest("DELETE", `/api/users/${userId}`);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+      toast({
+        title: "Bruger slettet",
+        description: "Medarbejderen er blevet slettet",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Fejl",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // =================================================================
+  // EVENT HANDLERS
+  // =================================================================
+
+  // Håndter oprettelse af bruger
+  const handleCreateUser = () => {
+    setEditingUser(null);
+    setIsSheetOpen(true);
+  };
+
+  // Håndter redigering af bruger
+  const handleEditUser = (user: User) => {
+    setEditingUser(user);
+    form.reset({
+      username: user.username,
+      name: user.name,
+      password: "", // Lad password-feltet være tomt ved redigering
+      isWorker: user.isWorker,
+      isAdmin: user.isAdmin,
+      isCustomer: user.isCustomer,
+      birthday: user.birthday ? new Date(user.birthday) : undefined,
+    });
+    setIsSheetOpen(true);
+  };
+
+  // Håndter lukning af sheet
+  const handleCloseSheet = (open: boolean) => {
+    setIsSheetOpen(open);
+    if (!open) {
+      setEditingUser(null);
+      form.reset();
+    }
+  };
+
+  // 7. Event handlers
+  async function handleDeleteCustomer() {
+    if (!selectedCustomerId) return;
+    try {
+      await apiRequest('DELETE', `/api/customers/${selectedCustomerId}`);
+      toast({ title: "Kunde slettet", description: "Kunden er nu slettet." });
+      setSelectedCustomerId(null);
+      setShowFinalConfirm(false);
+      setIsSearchingCustomer(true);
+    } catch (e: any) {
+      toast({ title: "Fejl", description: e?.message || "Kunne ikke slette kunden", variant: "destructive" });
+    }
+  }
+
+  const onSubmit = (data: InsertUser) => {
+    console.log('Form submitted with data:', data);
+    
+    // Rens data før sending
+    const cleanData = {
+      ...data,
+      password: data.password?.trim() || undefined,
+      birthday: data.birthday || null
+    };
+    
+    // Hvis vi redigerer og password er tomt, fjern det fra data
+    if (editingUser && !cleanData.password) {
+      delete cleanData.password;
+    }
+    
+    if (editingUser) {
+      userMutation.mutate({ ...cleanData, id: editingUser.id });
+    } else {
+      // For nye brugere skal password være angivet
+      if (!cleanData.password) {
+        toast({
+          title: "Fejl",
+          description: "Adgangskode er påkrævet for nye brugere",
+          variant: "destructive",
+        });
+        return;
+      }
+      userMutation.mutate(cleanData);
+    }
+  };
+
+  const handleDownload = async () => {
+    if (!selectedCustomerId || !customerData) return;
+
+    const doc = new jsPDF();
+    
+    // Tilføj titel
+    doc.setFontSize(20);
+    doc.text(`Kundedata - ${customerData.name}`, 14, 20);
+    
+    // Tilføj dato
+    doc.setFontSize(10);
+    doc.text(`Genereret: ${new Date().toLocaleString('da-DK')}`, 14, 30);
+
+    // Kundeoplysninger
+    doc.setFontSize(16);
+    doc.text('Kundeoplysninger', 14, 45);
+    
+    const customerInfoRows = [
+      ['Navn', customerData.name],
+      ['Email', customerData.email || '-'],
+      ['Telefon', customerData.phone || '-'],
+      ['Adresse', customerData.address || '-'],
+      ['By', customerData.city || '-'],
+      ['Postnummer', customerData.postalCode || '-'],
+    ];
+
+    autoTable(doc, {
+      startY: 50,
+      head: [['Felt', 'Værdi']],
+      body: customerInfoRows,
+      theme: 'grid',
+      headStyles: { fillColor: [41, 128, 185] },
+    });
+
+    // Sager
+    if (customerCases?.length) {
+      doc.setFontSize(16);
+      doc.text('Sager', 14, doc.lastAutoTable.finalY + 20);
+
+      const casesData = customerCases.map(case_ => [
+        case_.caseNumber,
+        getStatusLabel(case_.status),
+        new Date(case_.createdAt).toLocaleDateString('da-DK'),
+        case_.description || '-'
+      ]);
+
+      autoTable(doc, {
+        startY: doc.lastAutoTable.finalY + 25,
+        head: [['Sagsnummer', 'Status', 'Oprettet', 'Beskrivelse']],
+        body: casesData,
+        theme: 'grid',
+        headStyles: { fillColor: [41, 128, 185] },
+      });
+    }
+
+    // Bestillinger
+    if (customerOrders?.length) {
+      doc.setFontSize(16);
+      doc.text('Bestillinger', 14, doc.lastAutoTable.finalY + 20);
+
+      const ordersData = customerOrders.map(order => [
+        order.orderNumber,
+        order.status,
+        new Date(order.createdAt).toLocaleDateString('da-DK'),
+        order.totalAmount?.toLocaleString('da-DK') + ' kr.'
+      ]);
+
+      autoTable(doc, {
+        startY: doc.lastAutoTable.finalY + 25,
+        head: [['Ordrenummer', 'Status', 'Dato', 'Beløb']],
+        body: ordersData,
+        theme: 'grid',
+        headStyles: { fillColor: [41, 128, 185] },
+      });
+    }
+
+    // RMA-sager
+    if (customerRmas?.length) {
+      doc.setFontSize(16);
+      doc.text('RMA-sager', 14, doc.lastAutoTable.finalY + 20);
+
+      const rmasData = customerRmas.map(rma => [
+        rma.rmaNumber,
+        rma.status,
+        new Date(rma.createdAt).toLocaleDateString('da-DK'),
+        rma.description || '-'
+      ]);
+
+      autoTable(doc, {
+        startY: doc.lastAutoTable.finalY + 25,
+        head: [['RMA-nummer', 'Status', 'Dato', 'Beskrivelse']],
+        body: rmasData,
+        theme: 'grid',
+        headStyles: { fillColor: [41, 128, 185] },
+      });
+    }
+
+    // Gem PDF
+    doc.save(`kunde_${customerData.name}_${new Date().toISOString().split('T')[0]}.pdf`);
+
+    toast({
+      title: "Download fuldført",
+      description: "Kundedata er blevet downloadet som PDF",
+    });
+  };
+
+  const handlePrint = () => {
+    if (!selectedCustomerId || !customerData) return;
+
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      toast({
+        title: "Fejl",
+        description: "Kunne ikke åbne print-vinduet. Tjek om popup-blokering er aktiveret.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const content = `
+      <html>
+        <head>
+          <title>Kundedata - ${customerData.name}</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 20px; }
+            h1 { color: #333; }
+            h2 { color: #666; margin-top: 20px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+            th { background-color: #f5f5f5; }
+            .section { margin-bottom: 30px; }
+          </style>
+        </head>
+        <body>
+          <h1>Kundedata - ${customerData.name}</h1>
+          <div class="section">
+            <h2>Kundeoplysninger</h2>
+            <table>
+              <tr><th>Navn</th><td>${customerData.name}</td></tr>
+              <tr><th>Email</th><td>${customerData.email || '-'}</td></tr>
+              <tr><th>Telefon</th><td>${customerData.phone || '-'}</td></tr>
+              <tr><th>Adresse</th><td>${customerData.address || '-'}</td></tr>
+              <tr><th>By</th><td>${customerData.city || '-'}</td></tr>
+              <tr><th>Postnummer</th><td>${customerData.postalCode || '-'}</td></tr>
+            </table>
+          </div>
+          ${customerCases?.length ? `
+            <div class="section">
+              <h2>Sager (${customerCases.length})</h2>
+              <table>
+                <tr>
+                  <th>Sagsnummer</th>
+                  <th>Status</th>
+                  <th>Oprettet</th>
+                  <th>Beskrivelse</th>
+                </tr>
+                ${customerCases.map(case_ => `
+                  <tr>
+                    <td>${case_.caseNumber}</td>
+                    <td>${getStatusLabel(case_.status)}</td>
+                    <td>${new Date(case_.createdAt).toLocaleDateString('da-DK')}</td>
+                    <td>${case_.description || '-'}</td>
+                  </tr>
+                `).join('')}
+              </table>
+            </div>
+          ` : ''}
+          ${customerOrders?.length ? `
+            <div class="section">
+              <h2>Bestillinger (${customerOrders.length})</h2>
+              <table>
+                <tr>
+                  <th>Ordrenummer</th>
+                  <th>Status</th>
+                  <th>Dato</th>
+                  <th>Beløb</th>
+                </tr>
+                ${customerOrders.map(order => `
+                  <tr>
+                    <td>${order.orderNumber}</td>
+                    <td>${order.status}</td>
+                    <td>${new Date(order.createdAt).toLocaleDateString('da-DK')}</td>
+                    <td>${order.totalAmount?.toLocaleString('da-DK')} kr.</td>
+                  </tr>
+                `).join('')}
+              </table>
+            </div>
+          ` : ''}
+          ${customerRmas?.length ? `
+            <div class="section">
+              <h2>RMA-sager (${customerRmas.length})</h2>
+              <table>
+                <tr>
+                  <th>RMA-nummer</th>
+                  <th>Status</th>
+                  <th>Dato</th>
+                  <th>Beskrivelse</th>
+                </tr>
+                ${customerRmas.map(rma => `
+                  <tr>
+                    <td>${rma.rmaNumber}</td>
+                    <td>${rma.status}</td>
+                    <td>${new Date(rma.createdAt).toLocaleDateString('da-DK')}</td>
+                    <td>${rma.description || '-'}</td>
+                  </tr>
+                `).join('')}
+              </table>
+            </div>
+          ` : ''}
+          <div class="section">
+            <p><small>Genereret: ${new Date().toLocaleString('da-DK')}</small></p>
+          </div>
+        </body>
+      </html>
+    `;
+
+    printWindow.document.write(content);
+    printWindow.document.close();
+    printWindow.print();
+  };
+
+  // =================================================================
+  // RENDERING
+  // =================================================================
+
+  // 8. Early returns
+  if (!user?.isWorker) {
+    return <div>Ingen adgang</div>;
+  }
+
+  if (isLoading) {
+    return <div>Indlæser...</div>;
+  }
+
+  return (
+    <MenuLayout>
+      <div className="container mx-auto py-1 space-y-4">
+        <h1 className="text-2xl font-bold mb-4">Administration</h1>
+        <Tabs value={tab} onValueChange={setTab} className="mb-6">
+          <TabsList>
+            {user.isAdmin && <TabsTrigger value="users">Brugere</TabsTrigger>}
+            {user.isAdmin && <TabsTrigger value="delete-customer">Slet kunde</TabsTrigger>}
+            <TabsTrigger value="status-types">Status/prioritetstyper</TabsTrigger>
+            <TabsTrigger value="download-customer">Download/print kundedata</TabsTrigger>
+            <TabsTrigger value="stats">Statistik</TabsTrigger>
+          </TabsList>
+          <TabsContent value="users">
+            <div className="flex justify-between items-center">
+              <h1 className="text-2xl font-bold">{user?.isAdmin ? "Administration" : "Medarbejdere"}</h1>
+              {user.isAdmin && (
+                <Sheet open={isSheetOpen} onOpenChange={handleCloseSheet}>
+                  <SheetTrigger asChild>
+                    <Button onClick={handleCreateUser}>
+                      <Plus className="w-4 h-4 mr-2" />
+                      Opret medarbejder
+                    </Button>
+                  </SheetTrigger>
+                  <SheetContent>
+                    <SheetHeader>
+                      <SheetTitle>
+                        {editingUser ? "Rediger medarbejder" : "Opret ny medarbejder"}
+                      </SheetTitle>
+                    </SheetHeader>
+                    <div className="py-4">
+                      <Form {...form}>
+                        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                          <FormField
+                            control={form.control}
+                            name="username"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Brugernavn</FormLabel>
+                                <FormControl>
+                                  <Input {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={form.control}
+                            name="password"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>
+                                  {editingUser ? "Ny adgangskode (lad stå tom for at beholde nuværende)" : "Adgangskode"}
+                                </FormLabel>
+                                <FormControl>
+                                  <Input type="password" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={form.control}
+                            name="name"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Navn</FormLabel>
+                                <FormControl>
+                                  <Input {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={form.control}
+                            name="isWorker"
+                            render={({ field }) => (
+                              <FormItem className="flex items-center space-x-2">
+                                <FormControl>
+                                  <Checkbox
+                                    checked={field.value}
+                                    onCheckedChange={field.onChange}
+                                  />
+                                </FormControl>
+                                <FormLabel>Er medarbejder</FormLabel>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={form.control}
+                            name="isAdmin"
+                            render={({ field }) => (
+                              <FormItem className="flex items-center space-x-2">
+                                <FormControl>
+                                  <Checkbox
+                                    checked={field.value}
+                                    onCheckedChange={field.onChange}
+                                  />
+                                </FormControl>
+                                <FormLabel>Er administrator</FormLabel>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={form.control}
+                            name="birthday"
+                            render={({ field }) => (
+                              <FormItem className="flex flex-col">
+                                <FormLabel>Fødselsdag</FormLabel>
+                                <Popover>
+                                  <PopoverTrigger asChild>
+                                    <FormControl>
+                                      <Button
+                                        variant={"outline"}
+                                        className={cn(
+                                          "w-full pl-3 text-left font-normal",
+                                          !field.value && "text-muted-foreground"
+                                        )}
+                                      >
+                                        {field.value ? (
+                                          format(field.value, "dd/MM/yyyy")
+                                        ) : (
+                                          <span>Vælg fødselsdag</span>
+                                        )}
+                                        <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                                      </Button>
+                                    </FormControl>
+                                  </PopoverTrigger>
+                                  <PopoverContent className="w-auto p-0" align="start">
+                                    <Calendar
+                                      mode="single"
+                                      selected={field.value}
+                                      onSelect={field.onChange}
+                                      disabled={(date) =>
+                                        date > new Date() || date < new Date("1900-01-01")
+                                      }
+                                      initialFocus
+                                    />
+                                  </PopoverContent>
+                                </Popover>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <Button
+                            type="submit"
+                            className="w-full"
+                            disabled={userMutation.isPending}
+                          >
+                            {userMutation.isPending
+                              ? "Gemmer..."
+                              : editingUser
+                              ? "Gem ændringer"
+                              : "Opret medarbejder"}
+                          </Button>
+                        </form>
+                      </Form>
+                    </div>
+                  </SheetContent>
+                </Sheet>
+              )}
+            </div>
+
+            {/* MEDARBEJDERE/ADMIN TABEL */}
+            <div className="mb-8">
+              <h2 className="text-lg font-semibold mb-2">Medarbejdere & Admins</h2>
+                              <div className="bg-card rounded-lg shadow dark:shadow-lg">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Navn</TableHead>
+                      <TableHead>Brugernavn</TableHead>
+                      <TableHead>Type</TableHead>
+                      {user.isAdmin && <TableHead>Handlinger</TableHead>}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {paginatedStaff.map((userData, index) => {
+                      const isEven = index % 2 === 0;
+                      return (
+                        <TableRow key={userData.id} className={isEven ? 'bg-card' : 'bg-muted/30'}>
+                          <TableCell>{userData.name}</TableCell>
+                          <TableCell>{userData.username}</TableCell>
+                          <TableCell>
+                            {userData.isAdmin ? "Administrator" : "Medarbejder"}
+                          </TableCell>
+                          {user.isAdmin && (
+                            <TableCell className="space-x-2">
+                              <Button variant="outline" size="icon" onClick={() => handleEditUser(userData)}>
+                                <Edit2 className="w-4 h-4" />
+                              </Button>
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button variant="outline" size="icon">
+                                    <Trash2 className="w-4 h-4" />
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Er du sikker?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      Dette vil permanent slette medarbejderen {userData.name}.
+                                      Denne handling kan ikke fortrydes.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Annuller</AlertDialogCancel>
+                                    <AlertDialogAction onClick={() => deleteUserMutation.mutate(userData.id)}>
+                                      Slet
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            </TableCell>
+                          )}
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+                {/* PAGINATION STAFF */}
+                <div className="flex justify-end items-center gap-2 p-2">
+                  <Button variant="outline" size="sm" onClick={() => setStaffPage(p => Math.max(1, p-1))} disabled={staffPage === 1}>
+                    <ChevronLeft className="w-4 h-4" /> Forrige
+                  </Button>
+                  <span>Side {staffPage} af {staffTotalPages}</span>
+                  <Button variant="outline" size="sm" onClick={() => setStaffPage(p => Math.min(staffTotalPages, p+1))} disabled={staffPage === staffTotalPages}>
+                    Næste <ChevronRight className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+
+          </TabsContent>
+          <TabsContent value="delete-customer">
+            <div className="max-w-lg space-y-4">
+              <div className="p-3 bg-red-100 border border-red-300 text-red-800 rounded">
+                <b>Advarsel:</b> Sletning af en kunde er <u>permanent</u> og kan <b>ikke</b> fortrydes. Alle data for kunden fjernes fra systemet.
+              </div>
+              <h2 className="text-lg font-semibold">Slet kunde</h2>
+              <CustomerSearchInput
+                onSelect={setSelectedCustomerId}
+                isSearching={isSearchingCustomer}
+                setIsSearching={setIsSearchingCustomer}
+                selectedCustomerId={selectedCustomerId || undefined}
+              />
+              {selectedCustomerId && (
+                <Button
+                  variant="destructive"
+                  onClick={() => setShowDeleteDialog(true)}
+                  className="mt-2"
+                >
+                  Slet denne kunde
+                </Button>
+              )}
+              <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Er du sikker på du vil slette denne kunde?</AlertDialogTitle>
+                  </AlertDialogHeader>
+                  <div className="text-sm text-muted-foreground">
+                    Dette kan <b>ikke</b> fortrydes. Alle data for kunden slettes.
+                  </div>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Annullér</AlertDialogCancel>
+                    <AlertDialogAction onClick={() => { setShowDeleteDialog(false); setShowFinalConfirm(true); }}>
+                      Ja, fortsæt
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+              <AlertDialog open={showFinalConfirm} onOpenChange={setShowFinalConfirm}>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Bekræft sletning</AlertDialogTitle>
+                  </AlertDialogHeader>
+                  <div className="text-sm text-red-600">
+                    Er du <b>helt sikker</b> på at du vil slette denne kunde? Dette kræver admin-rettigheder.
+                  </div>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Annullér</AlertDialogCancel>
+                    <AlertDialogAction variant="destructive" onClick={handleDeleteCustomer}>
+                      Slet kunden
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
+          </TabsContent>
+          <TabsContent value="status-types">
+            <div className="max-w-xl mx-auto p-6 bg-white rounded-xl shadow space-y-6">
+              <h2 className="text-2xl font-bold mb-2 flex items-center gap-2">
+                <span>Status- og prioritetstyper</span>
+                <Info className="w-5 h-5 text-blue-400" />
+              </h2>
+              <p className="text-sm text-muted-foreground mb-4">
+                Herunder kan du se alle gyldige status- og prioritetstyper i systemet.<br />
+                <b>Ændringer kræver, at du redigerer filen <code>shared/schema.ts</code> og genstarter backend/frontend.</b>
+              </p>
+              <div>
+                <h3 className="text-lg font-semibold mb-2">Statustyper</h3>
+                <div className="flex flex-wrap gap-2">
+                  {Object.values(CaseStatus).map((value) => (
+                    <span
+                      key={value}
+                      className="inline-flex items-center px-3 py-1 rounded-full bg-blue-100 text-blue-800 text-sm font-medium border border-blue-200"
+                    >
+                      {getStatusLabel(value)}
+                      <span className="ml-2 text-xs text-muted-foreground">({value})</span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold mb-2 mt-4">Prioritetstyper</h3>
+                <div className="flex flex-wrap gap-2">
+                  {Object.values(PriorityType).map((value) => (
+                    <span
+                      key={value}
+                      className="inline-flex items-center px-3 py-1 rounded-full bg-green-100 text-green-800 text-sm font-medium border border-green-200"
+                    >
+                      {getPriorityLabel(value)}
+                      <span className="ml-2 text-xs text-muted-foreground">({value})</span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </TabsContent>
+          <TabsContent value="download-customer">
+            <div className="max-w-xl mx-auto p-6 bg-card rounded-xl shadow dark:shadow-lg space-y-6">
+              <h2 className="text-2xl font-bold mb-2 flex items-center gap-2">
+                <span>Download/print kundedata</span>
+                <Info className="w-5 h-5 text-blue-400" />
+              </h2>
+              <p className="text-sm text-muted-foreground mb-4">
+                Herunder kan du søge efter en kunde og downloade eller printe deres data, herunder:
+                <ul className="list-disc list-inside mt-2">
+                  <li>Kundeoplysninger</li>
+                  <li>Sager</li>
+                  <li>Bestillinger</li>
+                  <li>RMA-sager</li>
+                </ul>
+              </p>
+              <div className="space-y-4">
+                <CustomerSearchInput
+                  onSelect={setSelectedCustomerId}
+                  isSearching={isSearchingCustomer}
+                  setIsSearching={setIsSearchingCustomer}
+                  selectedCustomerId={selectedCustomerId || undefined}
+                />
+                {selectedCustomerId && (
+                  <div className="flex gap-4">
+                    <Button
+                      variant="outline"
+                      onClick={handleDownload}
+                      disabled={!customerData}
+                    >
+                      Download data
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={handlePrint}
+                      disabled={!customerData}
+                    >
+                      Print data
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </TabsContent>
+          <TabsContent value="stats">
+            <div className="p-6 bg-card rounded-xl shadow dark:shadow-lg space-y-8">
+              <div className="mb-8 flex items-center gap-4">
+                <div>
+                  <h1 className="text-3xl font-bold flex items-center gap-2">
+                    <BarChartIcon className="w-8 h-8 text-blue-600" />
+                    Statistik & Nøgletal
+                  </h1>
+                  <p className="text-muted-foreground mt-2">
+                    Få overblik over sager, kunder, behandlingstid, RMA og bestillinger – alt samlet ét sted.
+                  </p>
+                </div>
+              </div>
+              <StatsCards />
+              <CasesPerMonthGraph />
+              <AvgCaseTimeGraph />
+              <NewCustomersGraph />
+              <RmaPerMonthGraph />
+              <OrdersPerMonthGraph />
+              <CasesByTreatmentGraph />
+            </div>
+          </TabsContent>
+        </Tabs>
+      </div>
+    </MenuLayout>
+  );
+}
+
+function CasesPerMonthGraph() {
+  const { data, isLoading } = useCasesQuery({ page: 1, pageSize: 10000 });
+  const [fromMonth, setFromMonth] = useState('');
+  const [toMonth, setToMonth] = useState('');
+  if (isLoading) return <div>Indlæser sager...</div>;
+  const cases = Array.isArray(data) ? data : (data?.items || []);
+
+  // Aggreger sager pr. måned
+  const counts: Record<string, number> = {};
+  cases.forEach((c: any) => {
+    const month = format(parseISO(c.createdAt), 'yyyy-MM');
+    counts[month] = (counts[month] || 0) + 1;
+  });
+  // Sortér og lav data til graf
+  let months = Object.keys(counts).sort();
+
+  // Filtrér på valgt interval hvis angivet
+  if (fromMonth) months = months.filter(m => m >= fromMonth);
+  if (toMonth) months = months.filter(m => m <= toMonth);
+
+  const chartData = months.map(month => ({ month, antal: counts[month] }));
+
+  // Nøgletal for denne måned
+  const thisMonth = format(new Date(), 'yyyy-MM');
+  const casesThisMonth = counts[thisMonth] || 0;
+  const lastMonth = format(new Date(new Date().setMonth(new Date().getMonth() - 1)), 'yyyy-MM');
+  const casesLastMonth = counts[lastMonth] || 0;
+  const change = casesLastMonth > 0 ? Math.round(((casesThisMonth - casesLastMonth) / casesLastMonth) * 100) : 0;
+
+  return (
+    <div className="bg-card rounded-xl shadow dark:shadow-lg p-6 flex flex-col gap-4 border border-border">
+      <div className="flex items-center gap-2 mb-2">
+        <FileText className="w-5 h-5 text-blue-500" />
+        <span className="text-lg font-semibold">Sager pr. måned</span>
+      </div>
+      <p className="text-muted-foreground text-sm mb-2">
+        Udvikling i antal oprettede sager pr. måned. Hold musen over søjlerne for detaljer.
+      </p>
+      <div className="flex items-center gap-4 mb-4">
+        <label className="text-sm">Fra:
+          <input type="month" className="ml-2 border rounded px-2 py-1" value={fromMonth} onChange={e => setFromMonth(e.target.value)} />
+        </label>
+        <label className="text-sm">Til:
+          <input type="month" className="ml-2 border rounded px-2 py-1" value={toMonth} onChange={e => setToMonth(e.target.value)} />
+        </label>
+        {(fromMonth || toMonth) && (
+          <button className="ml-4 text-xs text-blue-600 underline" onClick={() => { setFromMonth(''); setToMonth(''); }}>Nulstil filter</button>
+        )}
+      </div>
+      <div className="mb-4">
+        <span className="font-medium">Denne måned:</span> {casesThisMonth} sager
+        <span className={change >= 0 ? 'text-green-600 ml-4' : 'text-red-600 ml-4'}>
+          {change >= 0 ? '↑' : '↓'} {Math.abs(change)}% fra sidste måned
+        </span>
+      </div>
+      <ResponsiveContainer width="100%" height={300}>
+        <BarChart data={chartData} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
+          <CartesianGrid strokeDasharray="3 3" />
+          <XAxis dataKey="month" />
+          <YAxis allowDecimals={false} />
+          <Tooltip formatter={(value: any, name: any, props: any) => [`${value} sager`, 'Antal']} />
+          <Bar dataKey="antal" fill="#2563eb" />
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+function AvgCaseTimeGraph() {
+  const { data, isLoading } = useCasesQuery({ page: 1, pageSize: 10000, includeCompleted: true });
+  const [fromMonth, setFromMonth] = useState('');
+  const [toMonth, setToMonth] = useState('');
+  
+  if (isLoading) return <div>Indlæser sager...</div>;
+  const cases = Array.isArray(data) ? data : (data?.items || []);
+
+  // Filtrer kun afsluttede sager
+  const completedCases = cases.filter((c: any) => c.status === 'completed');
+
+  // Beregn månedssammenligning ligesom dashboard
+  const thisMonth = format(new Date(), 'yyyy-MM');
+  const lastMonth = format(new Date(new Date().setMonth(new Date().getMonth() - 1)), 'yyyy-MM');
+  
+  const thisMonthCases = completedCases.filter((c: any) => {
+    const caseMonth = format(parseISO(c.updatedAt), 'yyyy-MM');
+    return caseMonth === thisMonth;
+  });
+  
+  const lastMonthCases = completedCases.filter((c: any) => {
+    const caseMonth = format(parseISO(c.updatedAt), 'yyyy-MM');
+    return caseMonth === lastMonth;
+  });
+  
+  const calculateAvg = (cases: any[]) => {
+    if (cases.length === 0) return 0;
+    const totalDays = cases.reduce((sum: number, c: any) => {
+      const days = differenceInDays(parseISO(c.updatedAt), parseISO(c.createdAt));
+      return sum + Math.max(days, 1); // Minimum 1 dag
+    }, 0);
+    return Math.round(totalDays / cases.length);
+  };
+  
+  const avgDaysThisMonth = calculateAvg(thisMonthCases);
+  const avgDaysLastMonth = calculateAvg(lastMonthCases);
+  const avgDaysChangePercent = avgDaysLastMonth > 0 ? 
+    Math.round(((avgDaysThisMonth - avgDaysLastMonth) / avgDaysLastMonth) * 100) : 0;
+
+  // Data til graf - viser denne og sidste måned
+  const chartData = [
+    { month: lastMonth, avgDays: avgDaysLastMonth },
+    { month: thisMonth, avgDays: avgDaysThisMonth }
+  ].filter(item => item.avgDays > 0);
+
+  return (
+    <div className="bg-card rounded-xl shadow dark:shadow-lg p-6 flex flex-col gap-4 border border-border">
+      <div className="flex items-center gap-2 mb-2">
+        <Clock className="w-5 h-5 text-green-500" />
+        <span className="text-lg font-semibold">Gennemsnitlig sagstid - månedlig sammenligning</span>
+      </div>
+      <p className="text-muted-foreground text-sm mb-2">
+        Sammenligning af gennemsnitlig behandlingstid for afsluttede sager denne måned vs. sidste måned.
+      </p>
+      <div className="mb-4 space-y-2">
+        <div>
+          <span className="font-medium">Denne måned:</span> {avgDaysThisMonth} dage
+        </div>
+        <div>
+          <span className="font-medium">Sidste måned:</span> {avgDaysLastMonth} dage
+        </div>
+        {avgDaysChangePercent !== 0 && (
+          <div className={avgDaysChangePercent < 0 ? 'text-green-600' : 'text-red-600'}>
+            <span className="font-medium">Ændring:</span> {avgDaysChangePercent < 0 ? '↓' : '↑'} {Math.abs(avgDaysChangePercent)}%
+            {avgDaysChangePercent < 0 ? ' (forbedring)' : ' (forværring)'}
+          </div>
+        )}
+      </div>
+      <ResponsiveContainer width="100%" height={300}>
+        <BarChart data={chartData} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
+          <CartesianGrid strokeDasharray="3 3" />
+          <XAxis dataKey="month" />
+          <YAxis allowDecimals={false} />
+          <Tooltip formatter={(value: any) => [`${value} dage`, 'Gns. sagstid']} />
+          <Bar dataKey="avgDays" fill="#059669" />
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+function NewCustomersGraph() {
+  const { data: customers, isLoading } = useAllCustomersQuery();
+  const [fromMonth, setFromMonth] = useState('');
+  const [toMonth, setToMonth] = useState('');
+  if (isLoading) return <div>Indlæser kunder...</div>;
+
+  // Aggreger nye kunder pr. måned
+  const counts: Record<string, number> = {};
+  (customers || []).forEach((c: any) => {
+    if (!c.createdAt) return;
+    const month = format(parseISO(c.createdAt), 'yyyy-MM');
+    counts[month] = (counts[month] || 0) + 1;
+  });
+  let months = Object.keys(counts).sort();
+
+  // Filtrér på valgt interval hvis angivet
+  if (fromMonth) months = months.filter(m => m >= fromMonth);
+  if (toMonth) months = months.filter(m => m <= toMonth);
+
+  const chartData = months.map(month => ({ month, antal: counts[month] }));
+
+  // Nøgletal for denne og sidste måned
+  const thisMonth = format(new Date(), 'yyyy-MM');
+  const lastMonth = format(new Date(new Date().setMonth(new Date().getMonth() - 1)), 'yyyy-MM');
+  const customersThisMonth = counts[thisMonth] || 0;
+  const customersLastMonth = counts[lastMonth] || 0;
+  const change = customersLastMonth > 0 ? Math.round(((customersThisMonth - customersLastMonth) / customersLastMonth) * 100) : 0;
+
+  return (
+    <div className="bg-card rounded-xl shadow dark:shadow-lg p-6 flex flex-col gap-4 border border-border">
+      <div className="flex items-center gap-2 mb-2">
+        <Users className="w-5 h-5 text-purple-500" />
+        <span className="text-lg font-semibold">Nye kunder pr. måned</span>
+      </div>
+      <p className="text-muted-foreground text-sm mb-2">
+        Udvikling i antal nye kunder pr. måned. Vælg periode for at filtrere.
+      </p>
+      <div className="flex items-center gap-4 mb-4">
+        <label className="text-sm">Fra:
+          <input type="month" className="ml-2 border rounded px-2 py-1" value={fromMonth} onChange={e => setFromMonth(e.target.value)} />
+        </label>
+        <label className="text-sm">Til:
+          <input type="month" className="ml-2 border rounded px-2 py-1" value={toMonth} onChange={e => setToMonth(e.target.value)} />
+        </label>
+        {(fromMonth || toMonth) && (
+          <button className="ml-4 text-xs text-blue-600 underline" onClick={() => { setFromMonth(''); setToMonth(''); }}>Nulstil filter</button>
+        )}
+      </div>
+      <div className="mb-4">
+        <span className="font-medium">Denne måned:</span> {customersThisMonth} kunder
+        <span className={change >= 0 ? 'text-green-600 ml-4' : 'text-red-600 ml-4'}>
+          {change >= 0 ? '↑' : '↓'} {Math.abs(change)}% fra sidste måned
+        </span>
+      </div>
+      <ResponsiveContainer width="100%" height={300}>
+        <BarChart data={chartData} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
+          <CartesianGrid strokeDasharray="3 3" />
+          <XAxis dataKey="month" />
+          <YAxis allowDecimals={false} />
+          <Tooltip formatter={(value: any) => [`${value} kunder`, 'Antal']} />
+          <Bar dataKey="antal" fill="#7c3aed" />
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+function RmaPerMonthGraph() {
+  // Hent alle RMA-sager
+  const { data, isLoading } = useRMAsQuery({ page: 1, pageSize: 10000 });
+  const [fromMonth, setFromMonth] = useState('');
+  const [toMonth, setToMonth] = useState('');
+  if (isLoading) return <div>Indlæser RMA-sager...</div>;
+  const rmas = data?.items || [];
+
+  // Aggreger RMA pr. måned
+  const counts: Record<string, number> = {};
+  rmas.forEach((rma: any) => {
+    if (!rma.createdAt) return;
+    const month = format(parseISO(rma.createdAt), 'yyyy-MM');
+    counts[month] = (counts[month] || 0) + 1;
+  });
+  let months = Object.keys(counts).sort();
+
+  // Filtrér på valgt interval hvis angivet
+  if (fromMonth) months = months.filter(m => m >= fromMonth);
+  if (toMonth) months = months.filter(m => m <= toMonth);
+
+  const chartData = months.map(month => ({ month, antal: counts[month] }));
+
+  return (
+    <div className="bg-card rounded-xl shadow dark:shadow-lg p-6 flex flex-col gap-4 border border-border">
+      <div className="flex items-center gap-2 mb-2">
+        <Activity className="w-5 h-5 text-orange-500" />
+        <span className="text-lg font-semibold">Antal RMA pr. måned</span>
+      </div>
+      <p className="text-muted-foreground text-sm mb-2">
+        Udvikling i antal oprettede RMA-sager pr. måned. Vælg periode for at filtrere.
+      </p>
+      <div className="flex items-center gap-4 mb-4">
+        <label className="text-sm">Fra:
+          <input type="month" className="ml-2 border rounded px-2 py-1" value={fromMonth} onChange={e => setFromMonth(e.target.value)} />
+        </label>
+        <label className="text-sm">Til:
+          <input type="month" className="ml-2 border rounded px-2 py-1" value={toMonth} onChange={e => setToMonth(e.target.value)} />
+        </label>
+        {(fromMonth || toMonth) && (
+          <button className="ml-4 text-xs text-blue-600 underline" onClick={() => { setFromMonth(''); setToMonth(''); }}>Nulstil filter</button>
+        )}
+      </div>
+      <ResponsiveContainer width="100%" height={300}>
+        <BarChart data={chartData} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
+          <CartesianGrid strokeDasharray="3 3" />
+          <XAxis dataKey="month" />
+          <YAxis allowDecimals={false} />
+          <Tooltip formatter={(value: any) => [`${value} RMA`, 'Antal']} />
+          <Bar dataKey="antal" fill="#f59e42" />
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+function OrdersPerMonthGraph() {
+  // Hent alle bestillinger
+  const { data, isLoading } = useOrdersQuery({ page: 1, pageSize: 10000 });
+  const [fromMonth, setFromMonth] = useState('');
+  const [toMonth, setToMonth] = useState('');
+  if (isLoading) return <div>Indlæser bestillinger...</div>;
+  const orders = data?.items || [];
+
+  // Aggreger bestillinger pr. måned
+  const counts: Record<string, number> = {};
+  orders.forEach((order: any) => {
+    if (!order.createdAt) return;
+    const month = format(parseISO(order.createdAt), 'yyyy-MM');
+    counts[month] = (counts[month] || 0) + 1;
+  });
+  let months = Object.keys(counts).sort();
+
+  // Filtrér på valgt interval hvis angivet
+  if (fromMonth) months = months.filter(m => m >= fromMonth);
+  if (toMonth) months = months.filter(m => m <= toMonth);
+
+  const chartData = months.map(month => ({ month, antal: counts[month] }));
+
+  return (
+    <div className="bg-card rounded-xl shadow dark:shadow-lg p-6 flex flex-col gap-4 border border-border">
+      <div className="flex items-center gap-2 mb-2">
+        <Package className="w-5 h-5 text-indigo-500" />
+        <span className="text-lg font-semibold">Antal bestillinger pr. måned</span>
+      </div>
+      <p className="text-muted-foreground text-sm mb-2">
+        Udvikling i antal oprettede bestillinger pr. måned. Vælg periode for at filtrere.
+      </p>
+      <div className="flex items-center gap-4 mb-4">
+        <label className="text-sm">Fra:
+          <input type="month" className="ml-2 border rounded px-2 py-1" value={fromMonth} onChange={e => setFromMonth(e.target.value)} />
+        </label>
+        <label className="text-sm">Til:
+          <input type="month" className="ml-2 border rounded px-2 py-1" value={toMonth} onChange={e => setToMonth(e.target.value)} />
+        </label>
+        {(fromMonth || toMonth) && (
+          <button className="ml-4 text-xs text-blue-600 underline" onClick={() => { setFromMonth(''); setToMonth(''); }}>Nulstil filter</button>
+        )}
+      </div>
+      <ResponsiveContainer width="100%" height={300}>
+        <BarChart data={chartData} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
+          <CartesianGrid strokeDasharray="3 3" />
+          <XAxis dataKey="month" />
+          <YAxis allowDecimals={false} />
+          <Tooltip formatter={(value: any) => [`${value} bestillinger`, 'Antal']} />
+          <Bar dataKey="antal" fill="#2563eb" />
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+function CasesByTreatmentGraph() {
+  const [treatment, setTreatment] = useState('repair');
+  const { data, isLoading } = useCasesQuery({ page: 1, pageSize: 10000, includeCompleted: true });
+  const [fromMonth, setFromMonth] = useState('');
+  const [toMonth, setToMonth] = useState('');
+  if (isLoading) return <div>Indlæser sager...</div>;
+  const cases = Array.isArray(data) ? data : (data?.items || []);
+
+  // Aggreger sager pr. måned for valgt behandlingstype
+  const counts: Record<string, number> = {};
+  cases.forEach((c: any) => {
+    if (!c.treatment || c.treatment !== treatment) return;
+    const month = format(parseISO(c.createdAt), 'yyyy-MM');
+    counts[month] = (counts[month] || 0) + 1;
+  });
+  let months = Object.keys(counts).sort();
+
+  // Filtrér på valgt interval hvis angivet
+  if (fromMonth) months = months.filter(m => m >= fromMonth);
+  if (toMonth) months = months.filter(m => m <= toMonth);
+
+  const chartData = months.map(month => ({ month, antal: counts[month] }));
+
+  // Behandlingstyper
+  const treatmentOptions = [
+    { value: 'repair', label: 'Reparation' },
+    { value: 'warranty', label: 'Reklamation' },
+    { value: 'setup', label: 'Klargøring' },
+    { value: 'other', label: 'Andet' },
+  ];
+
+  return (
+    <div className="bg-card rounded-xl shadow dark:shadow-lg p-6 flex flex-col gap-4 border border-border">
+      <div className="flex items-center gap-2 mb-2">
+        <Activity className="w-5 h-5 text-red-500" />
+        <span className="text-lg font-semibold">Antal sager pr. behandlingstype pr. måned</span>
+      </div>
+      <p className="text-muted-foreground text-sm mb-2">
+        Udvikling i antal sager pr. behandlingstype pr. måned. Vælg behandlingstype og periode for at filtrere.
+      </p>
+      <div className="flex items-center gap-4 mb-4">
+        <Select value={treatment} onValueChange={setTreatment}>
+          <SelectTrigger className="w-48">
+            <SelectValue placeholder="Vælg behandlingstype" />
+          </SelectTrigger>
+          <SelectContent>
+            {treatmentOptions.map(opt => (
+              <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <label className="text-sm">Fra:
+          <input type="month" className="ml-2 border rounded px-2 py-1" value={fromMonth} onChange={e => setFromMonth(e.target.value)} />
+        </label>
+        <label className="text-sm">Til:
+          <input type="month" className="ml-2 border rounded px-2 py-1" value={toMonth} onChange={e => setToMonth(e.target.value)} />
+        </label>
+        {(fromMonth || toMonth) && (
+          <button className="ml-4 text-xs text-blue-600 underline" onClick={() => { setFromMonth(''); setToMonth(''); }}>Nulstil filter</button>
+        )}
+      </div>
+      <ResponsiveContainer width="100%" height={300}>
+        <BarChart data={chartData} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
+          <CartesianGrid strokeDasharray="3 3" />
+          <XAxis dataKey="month" />
+          <YAxis allowDecimals={false} />
+          <Tooltip formatter={(value: any) => [`${value} sager`, 'Antal']} />
+          <Bar dataKey="antal" fill="#e11d48" />
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+function StatsCards() {
+  const { data: casesData } = useCasesQuery({ page: 1, pageSize: 10000, includeCompleted: true });
+  const { data: customers } = useAllCustomersQuery();
+  const { data: rmaData } = useRMAsQuery({ page: 1, pageSize: 10000 });
+  const { data: ordersData } = useOrdersQuery({ page: 1, pageSize: 10000 });
+
+  const [alarmCount, setAlarmCount] = useState<number>(0);
+
+  useEffect(() => {
+    fetch('/api/cases/alarm-count', { credentials: 'include' })
+      .then(res => res.json())
+      .then(data => setAlarmCount(data.count || 0))
+      .catch(() => setAlarmCount(0));
+  }, []);
+
+  const cases = Array.isArray(casesData) ? casesData : (casesData?.items || []);
+  const now = new Date();
+  const thisMonth = format(now, 'yyyy-MM');
+  const lastMonth = format(new Date(new Date().setMonth(new Date().getMonth() - 1)), 'yyyy-MM');
+
+  // Beregn månedsstatistikker ligesom dashboard
+  
+  // 1. Sager denne måned vs sidste måned
+  const casesThisMonth = cases.filter((c: any) => 
+    format(parseISO(c.createdAt), 'yyyy-MM') === thisMonth
+  ).length;
+  const casesLastMonth = cases.filter((c: any) => 
+    format(parseISO(c.createdAt), 'yyyy-MM') === lastMonth
+  ).length;
+  const casesChangePercent = casesLastMonth > 0 ? 
+    Math.round(((casesThisMonth - casesLastMonth) / casesLastMonth) * 100) : 0;
+
+  // 2. Gennemsnitlig sagstid denne måned vs sidste måned
+  const completedCases = cases.filter((c: any) => c.status === 'completed');
+  
+  const thisMonthCompletedCases = completedCases.filter((c: any) => {
+    const caseMonth = format(parseISO(c.updatedAt), 'yyyy-MM');
+    return caseMonth === thisMonth;
+  });
+  
+  const lastMonthCompletedCases = completedCases.filter((c: any) => {
+    const caseMonth = format(parseISO(c.updatedAt), 'yyyy-MM');
+    return caseMonth === lastMonth;
+  });
+  
+  const calculateAvg = (cases: any[]) => {
+    if (cases.length === 0) return 0;
+    const totalDays = cases.reduce((sum: number, c: any) => {
+      const days = differenceInDays(parseISO(c.updatedAt), parseISO(c.createdAt));
+      return sum + Math.max(days, 1); // Minimum 1 dag
+    }, 0);
+    return Math.round(totalDays / cases.length);
+  };
+  
+  const avgDaysThisMonth = calculateAvg(thisMonthCompletedCases);
+  const avgDaysLastMonth = calculateAvg(lastMonthCompletedCases);
+  const avgDaysChangePercent = avgDaysLastMonth > 0 ? 
+    Math.round(((avgDaysThisMonth - avgDaysLastMonth) / avgDaysLastMonth) * 100) : 0;
+
+  // 3. Nye kunder denne måned vs sidste måned
+  const customersThisMonth = (customers || []).filter((c: any) => 
+    c.createdAt && format(parseISO(c.createdAt), 'yyyy-MM') === thisMonth
+  ).length;
+  const customersLastMonth = (customers || []).filter((c: any) => 
+    c.createdAt && format(parseISO(c.createdAt), 'yyyy-MM') === lastMonth
+  ).length;
+  const customersChangePercent = customersLastMonth > 0 ? 
+    Math.round(((customersThisMonth - customersLastMonth) / customersLastMonth) * 100) : 0;
+
+  // 4. RMA denne måned vs sidste måned
+  const rmas = rmaData?.items || [];
+  const rmasThisMonth = rmas.filter((r: any) => 
+    r.createdAt && format(parseISO(r.createdAt), 'yyyy-MM') === thisMonth
+  ).length;
+  const rmasLastMonth = rmas.filter((r: any) => 
+    r.createdAt && format(parseISO(r.createdAt), 'yyyy-MM') === lastMonth
+  ).length;
+  const rmasChangePercent = rmasLastMonth > 0 ? 
+    Math.round(((rmasThisMonth - rmasLastMonth) / rmasLastMonth) * 100) : 0;
+
+  // 5. Bestillinger denne måned vs sidste måned
+  const orders = ordersData?.items || [];
+  const ordersThisMonth = orders.filter((o: any) => 
+    o.createdAt && format(parseISO(o.createdAt), 'yyyy-MM') === thisMonth
+  ).length;
+  const ordersLastMonth = orders.filter((o: any) => 
+    o.createdAt && format(parseISO(o.createdAt), 'yyyy-MM') === lastMonth
+  ).length;
+  const ordersChangePercent = ordersLastMonth > 0 ? 
+    Math.round(((ordersThisMonth - ordersLastMonth) / ordersLastMonth) * 100) : 0;
+
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-8">
+      <StatCardWithChange 
+        title="Sager denne måned" 
+        value={casesThisMonth} 
+        changePercent={casesChangePercent}
+        icon={<FileText className="w-5 h-5 text-blue-500" />} 
+      />
+      <StatCardWithChange 
+        title="Gennemsnitlig sagstid" 
+        value={`${avgDaysThisMonth} dage`}
+        changePercent={avgDaysChangePercent}
+        isLowerBetter={true}
+        icon={<Clock className="w-5 h-5 text-green-500" />} 
+      />
+      <StatCardWithChange 
+        title="Nye kunder denne måned" 
+        value={customersThisMonth} 
+        changePercent={customersChangePercent}
+        icon={<Users className="w-5 h-5 text-purple-500" />} 
+      />
+      <StatCardWithChange 
+        title="RMA denne måned" 
+        value={rmasThisMonth} 
+        changePercent={rmasChangePercent}
+        isLowerBetter={true}
+        icon={<Activity className="w-5 h-5 text-orange-500" />} 
+      />
+      <StatCardWithChange 
+        title="Bestillinger denne måned" 
+        value={ordersThisMonth} 
+        changePercent={ordersChangePercent}
+        icon={<Package className="w-5 h-5 text-indigo-500" />} 
+      />
+      <StatCard title="Sager i alarm" value={alarmCount} icon={<AlertCircle className="w-5 h-5 text-red-500" />} />
+    </div>
+  );
+}
+
+function StatCard({ title, value, icon }: { title: string; value: React.ReactNode; icon: React.ReactNode }) {
+  return (
+    <div className="bg-card rounded-xl shadow dark:shadow-lg p-4 flex flex-col items-start gap-2 border border-border">
+      <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+        {icon}
+        {title}
+      </div>
+      <div className="text-2xl font-bold">{value}</div>
+    </div>
+  );
+}
+
+function StatCardWithChange({ 
+  title, 
+  value, 
+  changePercent, 
+  icon, 
+  isLowerBetter = false 
+}: { 
+  title: string; 
+  value: React.ReactNode; 
+  changePercent: number;
+  icon: React.ReactNode;
+  isLowerBetter?: boolean;
+}) {
+  const isPositiveChange = changePercent > 0;
+  const isGoodChange = isLowerBetter ? !isPositiveChange : isPositiveChange;
+  
+  return (
+    <div className="bg-card rounded-xl shadow dark:shadow-lg p-4 flex flex-col items-start gap-2 border border-border">
+      <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+        {icon}
+        {title}
+      </div>
+      <div className="text-2xl font-bold">{value}</div>
+      {changePercent !== 0 && (
+        <p className="text-xs text-muted-foreground">
+          <span className={isGoodChange ? 'text-green-600 flex items-center' : 'text-red-600 flex items-center'}>
+            {isPositiveChange ? (
+              <ArrowUpRight className="h-4 w-4 mr-1" />
+            ) : (
+              <ArrowDownRight className="h-4 w-4 mr-1" />
+            )}
+            {Math.abs(changePercent)}% fra sidste måned
+          </span>
+        </p>
+      )}
+    </div>
+  );
+}

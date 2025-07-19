@@ -1,0 +1,93 @@
+# =============================================================================
+# SAGSHUB GIT IGNORE KONFIGURATION
+# =============================================================================
+# Denne fil definerer hvilke filer og mapper Git skal ignorere og indeholder:
+# - Node.js og package manager filer (node_modules, npm/yarn cache)
+# - Build output directories og generated filer
+# - Environment variabler og sensitive data
+# - IDE og editor konfigurationsfiler
+# - Log filer og temporary data
+# - Database files og dumps
+# =============================================================================
+
+# =================================================================
+# NODE.JS OG NPM/YARN DEPENDENCIES
+# =================================================================
+# Package manager dependencies og cache filer
+node_modules/                                                 # NPM/Yarn dependencies (skal ikke committes)
+npm-debug.log*                                               # NPM debug logs
+yarn-debug.log*                                              # Yarn debug logs
+yarn-error.log*                                              # Yarn error logs
+.pnpm-debug.log*                                             # PNPM debug logs
+
+# =================================================================
+# BUILD OUTPUT DIRECTORIES
+# =================================================================
+# Compiled og generated kode skal ikke committes til Git
+dist/                                                        # TypeScript compilation output
+build/                                                       # Alternative build directory navn
+*.tsbuildinfo                                                # TypeScript incremental compilation info
+
+# =================================================================
+# ENVIRONMENT VARIABLER OG SENSITIVE DATA
+# =================================================================
+# Miljøvariabler indeholder ofte passwords og API keys
+.env                                                         # Environment variables (ALDRIG commit passwords!)
+.env.local                                                   # Local environment overrides
+.env.development.local                                       # Development-specific env vars
+.env.test.local                                              # Test environment env vars
+.env.production.local                                        # Production environment env vars
+
+# =================================================================
+# DATABASE FILER
+# =================================================================
+# Database dumps og local database filer
+*.db                                                         # SQLite database filer
+*.sqlite                                                     # SQLite filer
+*.sql.gz                                                     # Compressed SQL dumps
+database_backup_*                                            # Database backup filer
+
+# =================================================================
+# LOG FILER
+# =================================================================
+# Application og system logs
+logs/                                                        # Log directory
+*.log                                                        # Alle log filer
+
+# =================================================================
+# IDE OG EDITOR KONFIGURATION
+# =================================================================
+# IDE-specifikke konfigurationsfiler (kan være personlige indstillinger)
+.vscode/                                                     # Visual Studio Code indstillinger
+.idea/                                                       # IntelliJ IDEA indstillinger
+*.swp                                                        # Vim swap filer
+*.swo                                                        # Vim backup filer
+
+# =================================================================
+# OPERATING SYSTEM GENERATED FILER
+# =================================================================
+# OS-specifike filer der genereres automatisk
+.DS_Store                                                    # macOS directory metadata
+Thumbs.db                                                    # Windows thumbnail cache
+.Spotlight-V100                                              # macOS Spotlight index
+.Trashes                                                     # macOS Trash metadata
+
+# =================================================================
+# TEMPORARY OG CACHE FILER
+# =================================================================
+# Midlertidige filer og cache der kan regenereres
+*.tmp                                                        # Temporary filer
+*.temp                                                       # Temporary filer
+.cache/                                                      # Cache directories
+.next/                                                       # Next.js cache (hvis brugt)
+# Dependencies 
+node_modules/  
+dist/  
+build/  
+*.exe  
+*.dll  
+*.zip  
+*.tar.gz  
+*.pdf  
+venv/  
+.DS_Store 

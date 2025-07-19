@@ -1,0 +1,182 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 221.2 83.2% 53.3%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 221.2 83.2% 53.3%;
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 217.2 91.2% 59.8%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 224.3 76.3% 48%;
+  }
+}
+
+@layer base {
+  * {
+    border-color: hsl(var(--border));
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+    min-height: 100vh;
+  }
+  
+  /* Light mode gradient */
+  body:not(.dark) {
+    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  }
+  
+  /* Dark mode gradient */
+  body.dark {
+    background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+  }
+}
+
+@layer components {
+  /* Zebra striping for alle tabeller - light mode */
+  .table tbody tr:nth-child(even) {
+    @apply bg-gray-50 dark:bg-gray-800;
+  }
+  
+  .table tbody tr:nth-child(odd) {
+    @apply bg-white dark:bg-gray-900;
+  }
+  
+  /* Hover effekt der overskriver zebra striping */
+  .table tbody tr:hover {
+    @apply bg-blue-50 dark:bg-blue-900/30 !important;
+  }
+  
+  /* Alarm rows skal have rød baggrund og overskrive zebra striping */
+  .table tbody tr.alarm-row {
+    @apply bg-red-50 dark:bg-red-900/30 border-red-500 dark:border-red-400 !important;
+  }
+
+  /* Dark mode forbedringer for bedre læsbarhed */
+  .dark .text-gray-700 {
+    @apply text-gray-200;
+  }
+  
+  .dark .text-gray-600 {
+    @apply text-gray-300;
+  }
+  
+  .dark .text-gray-500 {
+    @apply text-gray-400;
+  }
+
+  /* Stats cards og andre hvide baggrunde */
+  .dark .bg-white {
+    @apply bg-gray-900;
+  }
+  
+  .dark .bg-gray-50 {
+    @apply bg-gray-800;
+  }
+  
+  .dark .bg-gray-100 {
+    @apply bg-gray-800/50;
+  }
+
+  /* Forbedret kontrast for status badges i dark mode */
+  .dark .bg-green-100 {
+    @apply bg-green-900/30;
+  }
+  
+  .dark .text-green-800 {
+    @apply text-green-200;
+  }
+  
+  .dark .bg-blue-100 {
+    @apply bg-blue-900/30;
+  }
+  
+  .dark .text-blue-800 {
+    @apply text-blue-200;
+  }
+  
+  .dark .bg-yellow-100 {
+    @apply bg-yellow-900/30;
+  }
+  
+  .dark .text-yellow-800 {
+    @apply text-yellow-200;
+  }
+  
+  .dark .bg-red-100 {
+    @apply bg-red-900/30;
+  }
+  
+  .dark .text-red-800 {
+    @apply text-red-200;
+  }
+
+  /* Input felter og form elementer i dark mode */
+  .dark input[type="month"],
+  .dark input[type="text"],
+  .dark input[type="email"],
+  .dark input[type="password"],
+  .dark select {
+    @apply bg-gray-800 border-gray-600 text-gray-200;
+  }
+  
+  .dark input[type="month"]:focus,
+  .dark input[type="text"]:focus,
+  .dark input[type="email"]:focus,
+  .dark input[type="password"]:focus,
+  .dark select:focus {
+    @apply bg-gray-700 border-gray-500;
+  }
+
+  /* Chart baggrunde i dark mode */
+  .dark .recharts-surface {
+    @apply bg-gray-900/50;
+  }
+  
+  .dark .recharts-cartesian-grid-horizontal line,
+  .dark .recharts-cartesian-grid-vertical line {
+    stroke: rgba(156, 163, 175, 0.2);
+  }
+  
+  .dark .recharts-text {
+    @apply text-gray-300;
+  }
+}
