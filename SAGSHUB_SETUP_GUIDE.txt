@@ -1,0 +1,170 @@
+# SAGSHUB: Komplet installations- og opsætningsguide
+
+## 1. Forudsætninger – Installer disse programmer
+
+A. Git
+- Download: https://git-scm.com/download/win
+- Version: Seneste (minimum 2.30+)
+
+B. Node.js & npm
+- Download: https://nodejs.org/en/download/
+- Version:
+  - Node.js: 18.x (anbefalet)
+  - npm: 9.x eller nyere
+  (Tjek version med `node -v` og `npm -v`)
+
+C. PostgreSQL + pgAdmin
+- Download PostgreSQL: https://www.postgresql.org/download/windows/
+- Version: 15.x eller 16.x
+- pgAdmin: Følger med PostgreSQL-installationen
+
+---
+
+## 2. Klon projektet fra GitHub
+
+Åbn en terminal og kør:
+```
+git clone https://github.com/Rwindfeld/Sagshub.git
+cd Sagshub
+```
+
+---
+
+## 3. Installer globale dependencies
+
+(Hvis du ikke har dem i forvejen):
+```
+npm install -g pnpm
+npm install -g ts-node
+```
+
+---
+
+## 4. Installer projektets dependencies
+
+A. Backend, frontend og shared
+Kør i projektroden:
+```
+npm install
+```
+(Installerer alle dependencies fra package.json og package-lock.json – så du får præcis de rigtige versioner!)
+
+---
+
+## 5. Vigtige dependencies og versioner
+
+Disse installeres automatisk, men hvis du skal installere manuelt:
+- drizzle-orm: 0.27.0 (server), 0.41.0 (shared)
+- @faker-js/faker: 8.x
+- tailwindcss: 3.x
+- react: 18.x
+- @tanstack/react-query: 4.x
+- typescript: 5.x
+- pg: 8.x
+- express: 4.x
+- zod: 3.x
+(Se præcise versioner i package.json og shared/package.json)
+
+---
+
+## 6. Opsæt PostgreSQL database
+
+A. Opret database
+1. Åbn pgAdmin.
+2. Opret en ny database, fx `sagshub`.
+3. Opret en bruger (fx `sagshub_user`) med adgangskode og giv adgang til databasen.
+
+B. Tilføj database info til `.env`
+Kopier `config.example.env` til `.env` og udfyld:
+```
+DATABASE_URL=postgres://sagshub_user:ADGANGSKODE@localhost:5432/sagshub
+```
+
+---
+
+## 7. Kør migrationer
+
+Kør migrationscriptet for at oprette alle tabeller:
+```
+npx ts-node scripts/create-db-and-run-migrations.ts
+```
+(Eller brug evt. `npx ts-node scripts/run-all-migrations.ts` hvis du har flere migrationsmapper)
+
+---
+
+## 8. Opret admin-bruger
+
+Kør scriptet for at oprette en admin-bruger:
+```
+npx ts-node scripts/create-admin.ts
+```
+Følg instruktionerne i terminalen.
+
+---
+
+## 9. Start backend og frontend
+
+A. Backend
+```
+npm run dev
+```
+(Starter serveren på fx port 3000)
+
+B. Frontend
+```
+cd client
+npm install
+npm run dev
+```
+(Starter frontend på port 5174)
+
+---
+
+## 10. (Valgfrit) Generér testdata
+
+Kør scripts for at generere cases, ordrer og RMA:
+```
+npx ts-node scripts/generate-cases.ts
+npx ts-node scripts/generate-orders.ts
+npx ts-node scripts/generate-rma.ts
+```
+
+---
+
+## 11. Log ind og brug systemet
+
+- Åbn http://localhost:5174 i din browser.
+- Log ind med admin-brugeren du oprettede.
+
+---
+
+## 12. Fejlfinding
+
+- Hvis du får fejl med Drizzle versioner:
+  Sørg for at du IKKE opdaterer Drizzle manuelt – brug de versioner der allerede er i package.json og shared/package.json.
+- Hvis du får databasefejl:
+  Tjek at din .env matcher din databaseopsætning, og at migrationerne er kørt.
+
+---
+
+## 13. Versionsstyring
+
+- Alle versioner styres af package-lock.json – så længe du bruger npm install uden at opdatere, får du præcis de samme versioner som i Sagshub.
+
+---
+
+# Tjekliste
+
+- [x] Git installeret
+- [x] Node.js 18.x og npm 9.x
+- [x] PostgreSQL 15/16 + pgAdmin
+- [x] Projekt klonet fra GitHub
+- [x] Dependencies installeret (npm install)
+- [x] Database oprettet og .env udfyldt
+- [x] Migrationer kørt
+- [x] Admin-bruger oprettet
+- [x] Backend og frontend startet
+
+---
+
+**Spørg hvis du har brug for hjælp til et af trinnene!** 
