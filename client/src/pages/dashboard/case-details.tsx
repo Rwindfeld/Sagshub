@@ -118,7 +118,8 @@ const cleanData = (data: any) =>
   );
 
 export default function CaseDetails({ params, id, isCustomerView = false }: CaseDetailsProps) {
-  const caseId = id || params?.id;
+  // Brug caseNumber fra URL eller prop
+  const caseNumber = id || params?.id;
   const { toast } = useToast();
   const { user } = useAuth();
   const [, setLocation] = useLocation();
@@ -128,11 +129,12 @@ export default function CaseDetails({ params, id, isCustomerView = false }: Case
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [otherEmployee, setOtherEmployee] = useState("");
 
+  // Fetch sagen med caseNumber (string)
   const { data: case_, isLoading } = useQuery<CaseWithCustomer>({
-    queryKey: ["/api/cases", caseId],
+    queryKey: ["/api/cases", caseNumber],
     queryFn: async () => {
       try {
-        const res = await apiRequest("GET", `/api/cases/${caseId}`);
+        const res = await apiRequest("GET", `/api/cases/${caseNumber}`);
         if (!res.ok) {
           throw new Error("Kunne ikke hente sagen");
         }
@@ -149,25 +151,27 @@ export default function CaseDetails({ params, id, isCustomerView = false }: Case
         throw error;
       }
     },
-    enabled: !!caseId,
+    enabled: !!caseNumber,
   });
 
+  // Fetch statushistorik med caseNumber
   const { data: statusHistory = [] } = useQuery<StatusHistory[]>({
-    queryKey: ["/api/cases", caseId, "status-history"],
+    queryKey: ["/api/cases", caseNumber, "status-history"],
     queryFn: async () => {
-      const res = await apiRequest("GET", `/api/cases/${caseId}/status-history`);
+      const res = await apiRequest("GET", `/api/cases/${caseNumber}/status-history`);
       if (!res.ok) {
         throw new Error("Kunne ikke hente statushistorik");
       }
       return res.json();
     },
-    enabled: !!caseId,
+    enabled: !!caseNumber,
   });
 
+  // Brug caseNumber til ordrer (hvis backend understøtter det, ellers fjern denne del eller tilpas)
   const { data: orders = [], isLoading: isLoadingOrders } = useOrdersByCaseQuery(
-    parseInt(caseId || "0"),
+    caseNumber,
     {
-      enabled: !!caseId,
+      enabled: !!caseNumber,
     }
   );
 
@@ -186,7 +190,7 @@ export default function CaseDetails({ params, id, isCustomerView = false }: Case
       if (!comment) {
         throw new Error("Kommentar er påkrævet ved statusændring");
       }
-      const res = await apiRequest("POST", `/api/cases/${caseId}/status`, {
+      const res = await apiRequest("POST", `/api/cases/${caseNumber}/status`, {
         status: newStatus,
         comment,
         updatedByName: otherEmployee.trim() || undefined,
@@ -195,8 +199,8 @@ export default function CaseDetails({ params, id, isCustomerView = false }: Case
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/cases"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/cases", caseId] });
-      queryClient.invalidateQueries({ queryKey: ["/api/cases", caseId, "status-history"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/cases", caseNumber] });
+      queryClient.invalidateQueries({ queryKey: ["/api/cases", caseNumber, "status-history"] });
       toast({
         title: "Status opdateret",
         description: "Sagens status er blevet opdateret",
@@ -220,7 +224,7 @@ export default function CaseDetails({ params, id, isCustomerView = false }: Case
         throw new Error("Kunne ikke finde sags-ID");
       }
       const cleaned = cleanData(data);
-      const res = await apiRequest("PATCH", `/api/cases/${case_.id}`, cleaned);
+      const res = await apiRequest("PATCH", `/api/cases/${caseNumber}`, cleaned);
       if (!res.ok) {
         const errorData = await res.json().catch(() => null);
         throw new Error(errorData?.error || "Der opstod en fejl ved opdatering af sagen");
@@ -229,7 +233,7 @@ export default function CaseDetails({ params, id, isCustomerView = false }: Case
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/cases"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/cases", params.id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/cases", caseNumber] });
       toast({
         title: "Succes",
         description: "Sagen er blevet opdateret",
@@ -441,7 +445,22 @@ export default function CaseDetails({ params, id, isCustomerView = false }: Case
                       </SheetHeader>
                       <div className="mt-6">
                         <CaseForm
-                          defaultValues={case_}
+                          defaultValues={{
+                            customerId: case_?.customerId,
+                            customerName: fullCustomer?.name,
+                            customerPhone: fullCustomer?.phone,
+                            title: case_?.title,
+                            description: case_?.description,
+                            treatment: case_?.treatment,
+                            priority: case_?.priority,
+                            deviceType: case_?.deviceType,
+                            accessories: case_?.accessories,
+                            importantNotes: case_?.importantNotes,
+                            loginInfo: case_?.loginInfo,
+                            purchasedHere: case_?.purchasedHere,
+                            purchaseDate: case_?.purchaseDate ? new Date(case_?.purchaseDate) : undefined,
+                            createdByName: case_?.createdBy,
+                          }}
                           onSubmit={updateCaseMutation.mutate}
                           isLoading={updateCaseMutation.isPending}
                         />
@@ -465,7 +484,7 @@ export default function CaseDetails({ params, id, isCustomerView = false }: Case
                           Send denne sag til en anden medarbejder med en besked
                         </DialogDescription>
                       </DialogHeader>
-                      <InternalCaseForm caseId={parseInt(caseId || "0")} onSuccess={onInternalCaseSent} />
+                      <InternalCaseForm caseId={case_?.id ?? 0} onSuccess={onInternalCaseSent} />
                     </DialogContent>
                   </Dialog>
                   <Button variant="outline" size="sm" onClick={() => {
@@ -498,21 +517,21 @@ export default function CaseDetails({ params, id, isCustomerView = false }: Case
                       className="text-primary hover:underline font-medium flex items-center"
                       onClick={() => setSelectedCustomer(fullCustomer)}
                     >
-                      {case_.customer?.name}
+                      {fullCustomer?.name || "-"}
                     </button>
                   </dd>
                 </div>
                 <div>
                   <dt className="text-sm font-medium text-muted-foreground">Telefonnummer</dt>
-                  <dd className="text-base mt-1">{case_.customer?.phone || '-'}</dd>
+                  <dd className="text-base mt-1">{fullCustomer?.phone || '-'}</dd>
                 </div>
                 <div>
                   <dt className="text-sm font-medium text-muted-foreground">Email</dt>
-                  <dd className="text-base mt-1">{case_.customer?.email || '-'}</dd>
+                  <dd className="text-base mt-1">{fullCustomer?.email || '-'}</dd>
                 </div>
                 <div>
                   <dt className="text-sm font-medium text-muted-foreground">Adresse</dt>
-                  <dd className="text-base mt-1">{case_.customer?.address || '-'}</dd>
+                  <dd className="text-base mt-1">{fullCustomer?.address || '-'}</dd>
                 </div>
               </div>
             </div>
@@ -743,7 +762,7 @@ export default function CaseDetails({ params, id, isCustomerView = false }: Case
 
       {/* Usynlig prototype til print, så vi kan kopiere layoutet til print-vinduet */}
       <div id="print-root-prototype" style={{display: 'none'}}>
-        <PrintFollowupLayout caseData={{...case_, statusHistory}} />
+        <PrintFollowupLayout caseData={{...case_, createdBy: typeof case_?.createdBy === 'number' ? case_?.createdBy : undefined}} />
       </div>
     </MenuLayout>
   );

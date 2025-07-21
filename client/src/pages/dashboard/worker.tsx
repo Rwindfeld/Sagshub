@@ -34,6 +34,7 @@ import { useCasesQuery, useStatusCountsQuery, useAlarmCasesQuery, useTotalCasesQ
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { CaseStatus } from "@shared/schema";
+import { PrintFollowupDialog } from "@/components/print-followup-dialog";
 
 interface PaginatedResponse<T> {
   items: T[];
@@ -437,6 +438,20 @@ export default function WorkerDashboard() {
           </div>
         </div>
       </div>
+      {/* Print dialogen skal være udenfor Sheet, så den ikke unmountes når Sheet lukkes */}
+      <PrintFollowupDialog
+        isOpen={showPrintDialog}
+        onClose={() => setShowPrintDialog(false)}
+        onPrint={() => {
+          if (createdCase) {
+            const printUrl = `/print/followup?caseId=${createdCase.id}`;
+            window.open(printUrl, '_blank');
+          }
+          setShowPrintDialog(false);
+        }}
+        onSkip={() => setShowPrintDialog(false)}
+        caseData={createdCase || undefined}
+      />
     </MenuLayout>
   );
 }

@@ -686,9 +686,18 @@ export async function registerRoutes(app: Express): Promise<void> {
     }
 
     try {
-      const caseId = parseInt(req.params.id);
+      let caseId: number | undefined;
+      const idParam = req.params.id;
+      if (/^\d+$/.test(idParam)) {
+        // Hvis id-param kun er tal, brug som id
+        caseId = parseInt(idParam, 10);
+      } else {
+        // Ellers slå op på caseNumber
+        const caseRow = await storage.getCaseByNumber(idParam);
+        if (!caseRow) return res.status(404).json({ error: 'Case not found' });
+        caseId = caseRow.id;
+      }
       const { status, comment, updatedByName } = result.data;
-      // Tilføj: brug evt. updatedByName fra body, ellers brug brugerens navn
       const updatedByName_ = updatedByName || req.user.name;
 
       // Update case status and add to history
@@ -740,8 +749,16 @@ export async function registerRoutes(app: Express): Promise<void> {
     if (!req.isAuthenticated()) return res.sendStatus(401);
 
     try {
-      const caseId = parseInt(req.params.id);
-      
+      let caseId;
+      const idParam = req.params.id;
+      if (/^\d+$/.test(idParam)) {
+        caseId = parseInt(idParam, 10);
+      } else {
+        const caseRow = await storage.getCaseByNumber(idParam);
+        if (!caseRow) return res.status(404).json({ error: 'Case not found' });
+        caseId = caseRow.id;
+      }
+
       // For non-workers, check if the case belongs to the customer
       if (!req.user.isWorker) {
         const case_ = await storage.getCase(caseId);

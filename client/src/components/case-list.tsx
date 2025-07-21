@@ -652,11 +652,11 @@ export function CaseList({
                           onClick={() => {
                             console.log("CaseList: Case clicked");
                             console.log("CaseList: isCustomerView:", isCustomerView);
-                            console.log("CaseList: case_.id:", case_.id);
+                            console.log("CaseList: case_.caseNumber:", case_.caseNumber);
                             
                             const targetUrl = isCustomerView 
-                              ? `/case/${case_.id}` 
-                              : `/worker/cases/${case_.id}`;
+                              ? `/case/${case_.caseNumber}` 
+                              : `/worker/cases/${case_.caseNumber}`;
                             
                             console.log("CaseList: Navigating to:", targetUrl);
                             setLocation(targetUrl);
