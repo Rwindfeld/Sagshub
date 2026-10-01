@@ -3,13 +3,13 @@
 
 Et moderne, webbaseret sagsstyringssystem udviklet til små og mellemstore virksomheder. SagsHub erstatter manuelle processer og forældede systemer med en brugervenlig, type-sikker og skalerbar løsning.
 
-## 🎯 Hvad er SagsHub?
+##  Hvad er SagsHub?
 
 SagsHub er et komplet digitalt sagsstyringssystem, der gør det nemt for virksomheder at holde styr på deres sager, reparationer, returvarer og garantisager. Systemet er bygget som en webapplikation med adgang via browser uden installation af software.
 
-## ✨ Hovedfunktioner
+##  Hovedfunktioner
 
-### 🔐 Brugeradministration
+###  Brugeradministration
 - **Rollebaseret adgang**: Kunder, medarbejdere og administratorer med forskellige rettigheder
 - **Kundelogin**: Simpel adgang via telefonnummer og sagsnummer
 - **Medarbejderlogin**: Sikker autentificering med brugernavn og adgangskode
@@ -22,7 +22,7 @@ SagsHub er et komplet digitalt sagsstyringssystem, der gør det nemt for virksom
 - **Behandlingstyper**: Støtte for forskellige sagstyper (reparation, RMA, fejlsøgning)
 - **Tilbehørshåndtering**: Registrering af medbragt udstyr og tilbehør
 
-### 🔄 RMA og Ordrestyring
+###  RMA og Ordrestyring
 - **RMA-modul**: Komplet håndtering af returvarer med fejlbeskrivelser
 - **Delebestillinger**: Integration med leverandørsystem
 - **Ordrehåndtering**: Fra tilbud til fakturering
@@ -35,7 +35,7 @@ SagsHub er et komplet digitalt sagsstyringssystem, der gør det nemt for virksom
 - **Statistikmodul**: Nøgletal og trends for forretningsanalyse
 - **Udskriftsfunktion**: Følgesedler og sagsoversigter
 
-### ⚡ Performance og Brugeroplevelse
+###  Performance og Brugeroplevelse
 - **Live-opdateringer**: WebSocket forbindelse for real-time status
 - **Pagination**: Effektiv håndtering af store datamængder
 - **Søgefunktion**: Hurtig filtrering på tværs af sager og kunder
@@ -70,7 +70,7 @@ SagsHub er et komplet digitalt sagsstyringssystem, der gør det nemt for virksom
 - **CORS** - Cross-origin resource sharing
 - **Connection pooling** - Optimeret database performance
 
-## 🚀 Installation og Opsætning
+##  Installation og Opsætning
 
 ### Forudsætninger
 - Node.js (v18 eller nyere)
@@ -136,7 +136,7 @@ NODE_ENV=development
 - **Medarbejder**: Chris / password123
 - **Kunde**: Telefonnummer + Sagsnummer (se systemet for eksempler)
 
-## 📁 Projektstruktur
+##  Projektstruktur
 
 ```
 sagshub/
@@ -155,7 +155,7 @@ sagshub/
 └── docs/                # Dokumentation
 ```
 
-## 🔍 Test og Kvalitetssikring
+##  Test og Kvalitetssikring
 
 ### Testdata
 Systemet inkluderer automatisk generering af realistiske testdata:
@@ -174,7 +174,7 @@ npm run generate-test-data
 - Struktureret server-side logging
 - Automatic error boundaries i frontend
 
-## 🚀 Deployment Muligheder
+##  Deployment Muligheder
 
 ### Lokalt Netværk (Raspberry Pi)
 - Backend og PostgreSQL i Docker på Raspberry Pi 5
@@ -205,7 +205,7 @@ npm run generate-test-data
 - Blockchain-baseret sporbarhed
 - AI-assisteret kundeservice
 
-## 🤝 Bidrag
+##  Bidrag
 
 Dette er et åbent source projekt udviklet som afgangsprojekt. Bidrag er velkomne!
 
@@ -215,11 +215,11 @@ Dette er et åbent source projekt udviklet som afgangsprojekt. Bidrag er velkomn
 3. Implementer ændringer med tests
 4. Submit pull request
 
-## 📄 Licens
+##  Licens
 
 Dette projekt er udviklet som uddannelsesprojekt og er tilgængeligt under MIT licens.
 
-## 📞 Support
+##  Support
 
 For spørgsmål og support, kontakt projektudvikleren eller opret et issue på GitHub.
 
