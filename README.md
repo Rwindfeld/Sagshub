@@ -15,7 +15,7 @@ SagsHub er et komplet digitalt sagsstyringssystem, der gør det nemt for virksom
 - **Medarbejderlogin**: Sikker autentificering med brugernavn og adgangskode
 - **Session-håndtering**: Automatisk login-bevarelse og sikker logout
 
-### 📋 Sagsstyring
+###  Sagsstyring
 - **Sagsoprettelse**: Automatisk generering af unikke sagsnumre
 - **Kundehåndtering**: Komplet CRM med kunde-informationer
 - **Statusopdateringer**: Real-time tracking af sagsforløb med historik
@@ -28,7 +28,7 @@ SagsHub er et komplet digitalt sagsstyringssystem, der gør det nemt for virksom
 - **Ordrehåndtering**: Fra tilbud til fakturering
 - **Varenumre og serienumre**: Detaljeret produktsporing
 
-### 📊 Dashboard og Rapporter
+###  Dashboard og Rapporter
 - **Medarbejderdashboard**: Oversigt over aktive sager, søgning og filtrering
 - **Kundedashboard**: Selvbetjening med sagsstatusvisning
 - **Statusovervågning**: Automatiske alarmer for sager uden opdateringer
@@ -42,7 +42,7 @@ SagsHub er et komplet digitalt sagsstyringssystem, der gør det nemt for virksom
 - **Responsivt design**: Fungerer på desktop, tablet og mobil
 - **Error boundaries**: Elegant fejlhåndtering
 
-## 🛠️ Teknologier
+##  Teknologier
 
 ### Frontend
 - **React** + **TypeScript** - Type-sikker UI udvikling
@@ -191,7 +191,7 @@ npm run generate-test-data
 - Offline sync funktionalitet
 - OS-specifikke notifikationer
 
-## 📈 Fremtidige Udvidelser
+##  Fremtidige Udvidelser
 
 ### Kort sigt
 - E-mail og SMS notifikationer
